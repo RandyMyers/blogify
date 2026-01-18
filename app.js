@@ -25,15 +25,19 @@ if (fs.existsSync(rootEnvPath)) {
   envResult = dotenv.config({ path: serverEnvPath });
 } else {
   // Try default location (current working directory)
+  // Don't throw error if .env doesn't exist (normal for serverless environments like Vercel)
   envResult = dotenv.config();
 }
 
-if (envResult.error && !fs.existsSync(rootEnvPath) && !fs.existsSync(serverEnvPath)) {
-  console.error('Error loading .env file:', envResult.error);
-  console.error('Tried paths:');
-  console.error('  -', rootEnvPath);
-  console.error('  -', serverEnvPath);
-  console.error('  -', path.resolve('.env'));
+// Only log error if .env file was expected but failed to load
+// In serverless (Vercel, etc.), environment variables are set via dashboard, so .env may not exist
+if (envResult.error && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.SERVERLESS) {
+  // Only warn if not in serverless environment
+  console.warn('Note: .env file not found. Environment variables should be set via your hosting platform.');
+  console.warn('Tried paths:');
+  console.warn('  -', rootEnvPath);
+  console.warn('  -', serverEnvPath);
+  console.warn('  -', path.resolve('.env'));
 }
 
 // Now require modules that might use process.env
