@@ -81,6 +81,54 @@ app.set('trust proxy', true);
 // Add request ID middleware early in the chain
 app.use(requestId);
 
+// --- CORS (Vercel-safe) ---
+// On Vercel/serverless, you must respond to OPTIONS preflights and include CORS headers on every path,
+// including error responses. We set headers early so they apply even if later middleware throws.
+const isDevelopment = env.NODE_ENV !== 'production';
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return isDevelopment; // allow non-browser tools (no Origin) only in dev
+
+  // Local dev
+  if (isDevelopment && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+    return true;
+  }
+
+  // Explicit allowlist via env
+  if (origin === env.CLIENT_URL || origin === env.ADMIN_URL) {
+    return true;
+  }
+
+  // Hosting platforms
+  if (origin.endsWith('.netlify.app') || origin.endsWith('.vercel.app')) {
+    return true;
+  }
+
+  return false;
+};
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    // Only set credentials if you actually use cookies; keep it true for now because server uses cookieParser.
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+
+  // Always set these so preflight can succeed.
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  // Short-circuit preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+
+  return next();
+});
+
 // Cloudinary Configuration
 const cloudinaryConfig = require('./config/cloudinary');
 
@@ -159,9 +207,6 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false,
 }));
-
-// CORS Configuration
-const isDevelopment = env.NODE_ENV !== 'production';
 
 // Rate Limiting
 const apiLimiter = rateLimit({
