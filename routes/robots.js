@@ -6,8 +6,9 @@ const router = express.Router();
  * Tells search engine crawlers which pages they can access
  */
 router.get('/robots.txt', (req, res) => {
-  const baseUrl = process.env.CLIENT_URL || 'https://blogify.com';
-  
+  // Point search engines to the frontend sitemap hosted on Netlify
+  const frontendUrl = 'https://fabulous-arithmetic-400162.netlify.app';
+
   let robotsTxt = `# Blogify Robots.txt
 # Allow all search engines to crawl the site
 
@@ -19,7 +20,7 @@ Disallow: /api/
 Disallow: /admin/
 
 # Sitemap location
-Sitemap: ${baseUrl}/sitemap.xml
+Sitemap: ${frontendUrl}/sitemap.xml
 
 # Crawl delay (optional, adjust if needed)
 Crawl-delay: 1

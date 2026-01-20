@@ -350,11 +350,10 @@ app.use('/api/ads', require('./routes/adRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 app.use('/api/visitors', require('./routes/visitorRoutes'));
 
-// Sitemap routes (public, accessible at /sitemap.xml and /api/sitemap.xml)
-app.use('/', require('./routes/sitemapRoutes'));
-app.use('/api', require('./routes/sitemapRoutes'));
+// Sitemap data routes (JSON only, used by frontend build script to generate sitemap.xml)
+app.use('/api/sitemap-data', require('./routes/sitemapDataRoutes'));
 
-// Robots.txt route (public)
+// Robots.txt route (public) - mainly relevant if bots crawl the API domain directly
 app.use('/', require('./routes/robots'));
 
 // Error handling middleware (must be last)
