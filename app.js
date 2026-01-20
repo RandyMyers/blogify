@@ -191,6 +191,8 @@ const authLimiter = rateLimit({
 const allowedOrigins = [
   env.CLIENT_URL,
   env.ADMIN_URL,
+  // Netlify URLs
+  'https://fabulous-arithmetic-400162.netlify.app',
   // Always allow localhost in development
   ...(isDevelopment ? ['http://localhost:3000', 'http://localhost:3001'] : [])
 ].filter(Boolean);
@@ -207,6 +209,16 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Allow Netlify domains (including preview deployments)
+    if (origin && (origin.includes('.netlify.app') || origin.includes('netlify.app'))) {
+      return callback(null, true);
+    }
+    
+    // Allow Vercel domains (in case admin is hosted there)
+    if (origin && origin.includes('.vercel.app')) {
+      return callback(null, true);
+    }
+    
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -214,9 +226,10 @@ app.use(cors({
       callback(new Error('Not allowed by CORS'));
     }
   },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 app.use(cookieParser()); // Parse cookies from requests
 app.use(bodyParser.json({ limit: '10mb' })); // Adjust the limit as needed
