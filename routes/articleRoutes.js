@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllArticles,
+  getAllArticlesAdmin,
   getArticleBySlug,
   getArticleById,
   getTopArticles,
@@ -31,7 +32,8 @@ router.post('/:slug/view', trackView);
 router.get('/:slug', checkArticleAccess, getArticleBySlug);
 router.get('/', getAllArticles);
 
-// Admin routes - protected
+// Admin routes - protected (order matters: /admin/list before /admin/:id)
+router.get('/admin/list', protect, isAdmin, getAllArticlesAdmin);
 router.post('/', protect, isAdmin, validateCreateArticle, createArticle);
 router.get('/admin/:id', protect, isAdmin, validateArticleId, getArticleById);
 router.put('/:id', protect, isAdmin, validateUpdateArticle, updateArticle);

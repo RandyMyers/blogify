@@ -43,6 +43,14 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
       message: 'Article not found' 
     });
   }
+
+  // Do not expose draft articles to the public (client)
+  if (!article.published) {
+    return res.status(404).json({
+      success: false,
+      message: 'Article not found'
+    });
+  }
   
   // Check region access
   if (!article.isGlobal) {

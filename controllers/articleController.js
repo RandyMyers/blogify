@@ -169,6 +169,113 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Get all articles for admin (includes drafts and published)
+ * @route   GET /api/articles/admin/list
+ * @access  Private/Admin
+ */
+exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const category = req.query.category;
+  const author = req.query.author;
+  const publishedParam = req.query.published; // 'true' | 'false' | undefined (all)
+  const language = req.query.lang || req.language || 'en';
+
+  const query = {};
+  if (publishedParam === 'true') query.published = true;
+  if (publishedParam === 'false') query.published = false;
+  if (category) query.category = category;
+  if (author) query.author = author;
+
+  const articles = await Article.find(query)
+    .sort({ updatedAt: -1, createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('category', 'name slug color')
+    .populate('author', 'name slug avatar');
+
+  const transformedArticles = articles.map(article => {
+    const translation = article.getTranslation(language);
+    const defaultTranslation = article.getTranslation(article.defaultLanguage);
+    const activeTranslation = translation || defaultTranslation;
+
+    if (!activeTranslation) {
+      return null;
+    }
+
+    let categoryData = article.category;
+    if (article.category && article.category.getTranslation) {
+      const categoryTranslation = article.category.getTranslation(language);
+      if (categoryTranslation) {
+        categoryData = {
+          ...article.category.toObject(),
+          name: categoryTranslation.name || article.category.name,
+          slug: categoryTranslation.slug || article.category.slug,
+          description: categoryTranslation.description || article.category.description
+        };
+      }
+    }
+
+    let authorData = article.author;
+    if (article.author && article.author.getTranslation) {
+      const authorTranslation = article.author.getTranslation(language);
+      if (authorTranslation) {
+        authorData = {
+          ...article.author.toObject(),
+          bio: authorTranslation.bio || article.author.bio
+        };
+      }
+    }
+
+    return {
+      _id: article._id,
+      baseSlug: article.baseSlug,
+      slug: activeTranslation.slug,
+      title: activeTranslation.title,
+      excerpt: activeTranslation.excerpt,
+      content: activeTranslation.content,
+      imageUrl: article.imageUrl,
+      category: categoryData,
+      author: authorData,
+      tags: article.tags,
+      published: article.published,
+      publishedAt: article.publishedAt,
+      views: article.views,
+      likes: article.likes,
+      readTime: article.readTime,
+      featured: article.featured,
+      trending: article.trending,
+      translations: article.translations,
+      defaultLanguage: article.defaultLanguage,
+      isGlobal: article.isGlobal,
+      regionRestrictions: article.regionRestrictions,
+      createdAt: article.createdAt,
+      updatedAt: article.updatedAt,
+      seo: {
+        metaTitle: activeTranslation.metaTitle,
+        metaDescription: activeTranslation.metaDescription,
+        keywords: activeTranslation.keywords
+      },
+      language,
+      availableLanguages: article.getAvailableLanguages()
+    };
+  }).filter(article => article !== null);
+
+  const total = await Article.countDocuments(query);
+
+  res.json({
+    success: true,
+    count: transformedArticles.length,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
+    data: transformedArticles
+  });
+});
+
+/**
  * @desc    Get single article by slug (multilingual support)
  * @route   GET /api/articles/:slug
  * @access  Public
