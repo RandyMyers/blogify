@@ -715,14 +715,23 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     article.regionRestrictions = regionRestrictions;
   }
   if (translations !== undefined) {
-    // Merge translations (don't overwrite, merge)
-    Object.keys(translations).forEach(lang => {
-      if (article.translations[lang]) {
-        article.translations[lang] = { ...article.translations[lang], ...translations[lang] };
+    // Merge translations; spread of Mongoose subdocs can omit or mishandle nested arrays.
+    // Convert existing subdocs with toObject(), then markModified so content[] persists.
+    Object.keys(translations).forEach((lang) => {
+      const incoming = translations[lang];
+      if (!incoming) return;
+      const existing = article.translations[lang];
+      if (existing) {
+        const existingPlain =
+          typeof existing.toObject === 'function'
+            ? existing.toObject()
+            : { ...existing };
+        article.translations[lang] = { ...existingPlain, ...incoming };
       } else {
-        article.translations[lang] = translations[lang];
+        article.translations[lang] = incoming;
       }
     });
+    article.markModified('translations');
   }
   
   // Update legacy fields (for backward compatibility)
