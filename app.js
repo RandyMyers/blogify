@@ -120,7 +120,7 @@ app.use((req, res, next) => {
 
   // Always set these so preflight can succeed.
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tenant-Slug, X-Tenant-Id');
   res.setHeader('Access-Control-Max-Age', '86400');
 
   // Short-circuit preflight
@@ -240,6 +240,7 @@ const allowedOrigins = [
   env.ADMIN_URL,
   // Netlify URLs
   'https://fabulous-arithmetic-400162.netlify.app',
+  'https://eloquent-taffy-866b1b.netlify.app',
   // Always allow localhost in development
   ...(isDevelopment ? ['http://localhost:3000', 'http://localhost:3001'] : [])
 ].filter(Boolean);
@@ -274,7 +275,7 @@ app.use(cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Tenant-Slug', 'X-Tenant-Id'],
   credentials: true,
   exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
