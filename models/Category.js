@@ -9,11 +9,15 @@ const categoryTranslationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const categorySchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true
+  },
   // Base fields for multilingual support
   baseSlug: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     index: true
   },
@@ -87,6 +91,7 @@ const categorySchema = new mongoose.Schema({
 
 // Indexes
 categorySchema.index({ baseSlug: 1 });
+categorySchema.index({ tenantId: 1, baseSlug: 1 }, { unique: true });
 categorySchema.index({ 'translations.en.slug': 1 });
 categorySchema.index({ 'translations.fr.slug': 1 });
 categorySchema.index({ 'translations.es.slug': 1 });
@@ -96,6 +101,7 @@ categorySchema.index({ 'translations.it.slug': 1 });
 categorySchema.index({ name: 1 });
 categorySchema.index({ slug: 1 });
 categorySchema.index({ isPopular: 1 });
+categorySchema.index({ tenantId: 1, isPopular: 1, postCount: -1 });
 
 // Virtual for articles (will be populated)
 categorySchema.virtual('articles', {
@@ -143,7 +149,11 @@ categorySchema.pre('save', function(next) {
 // Method to update post count
 categorySchema.methods.updatePostCount = async function() {
   const Article = mongoose.model('Article');
-  const count = await Article.countDocuments({ category: this._id, published: true });
+  const count = await Article.countDocuments({
+    category: this._id,
+    published: true,
+    ...(this.tenantId ? { tenantId: this.tenantId } : {})
+  });
   this.postCount = count;
   await this.save();
 };

@@ -32,7 +32,8 @@ exports.searchArticles = asyncHandler(async (req, res) => {
     category,
     author,
     language,
-    region
+    region,
+    tenantId: req.tenantId
   });
   
   // Transform articles to include language-specific content
@@ -80,6 +81,7 @@ exports.searchArticles = asyncHandler(async (req, res) => {
   // Count total (with region filtering)
   const countQuery = {
     published: true,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { isGlobal: true },
       { regionRestrictions: region }
@@ -122,6 +124,7 @@ exports.searchCategories = asyncHandler(async (req, res) => {
   
   // Search in translations
   const categories = await Category.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.name`]: { $regex: query.trim(), $options: 'i' } },
       { [`translations.${language}.description`]: { $regex: query.trim(), $options: 'i' } },
@@ -184,6 +187,7 @@ exports.searchAuthors = asyncHandler(async (req, res) => {
   
   // Search in translations and name
   const authors = await Author.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { name: { $regex: query.trim(), $options: 'i' } },
       { [`translations.${language}.bio`]: { $regex: query.trim(), $options: 'i' } },
@@ -248,7 +252,8 @@ exports.globalSearch = asyncHandler(async (req, res) => {
   const articles = await Article.search(searchQuery, { 
     limit,
     language,
-    region
+    region,
+    tenantId: req.tenantId
   });
   
   // Transform articles
@@ -274,6 +279,7 @@ exports.globalSearch = asyncHandler(async (req, res) => {
   
   // Search categories
   const categories = await Category.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.name`]: { $regex: searchQuery, $options: 'i' } },
       { [`translations.${language}.description`]: { $regex: searchQuery, $options: 'i' } },
@@ -306,6 +312,7 @@ exports.globalSearch = asyncHandler(async (req, res) => {
   
   // Search authors
   const authors = await Author.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { name: { $regex: searchQuery, $options: 'i' } },
       { [`translations.${language}.bio`]: { $regex: searchQuery, $options: 'i' } },

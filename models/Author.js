@@ -8,11 +8,15 @@ const authorTranslationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const authorSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true
+  },
   // Base fields for multilingual support
   baseSlug: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     index: true
   },
@@ -41,7 +45,6 @@ const authorSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Author name is required'],
-    unique: true,
     trim: true,
     maxlength: [100, 'Author name cannot exceed 100 characters'],
     index: true
@@ -64,7 +67,6 @@ const authorSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    unique: true,
     sparse: true,
     trim: true,
     lowercase: true,
@@ -98,6 +100,7 @@ const authorSchema = new mongoose.Schema({
 
 // Indexes
 authorSchema.index({ baseSlug: 1 });
+authorSchema.index({ tenantId: 1, baseSlug: 1 }, { unique: true });
 authorSchema.index({ 'translations.en.slug': 1 });
 authorSchema.index({ 'translations.fr.slug': 1 });
 authorSchema.index({ 'translations.es.slug': 1 });
@@ -105,8 +108,10 @@ authorSchema.index({ 'translations.de.slug': 1 });
 authorSchema.index({ 'translations.it.slug': 1 });
 // Legacy indexes (for backward compatibility)
 authorSchema.index({ name: 1 });
+authorSchema.index({ tenantId: 1, name: 1 });
 authorSchema.index({ slug: 1 });
 authorSchema.index({ email: 1 });
+authorSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true });
 
 // Virtual for articles (will be populated)
 authorSchema.virtual('articles', {
@@ -143,7 +148,11 @@ authorSchema.pre('save', function(next) {
 // Method to update article count
 authorSchema.methods.updateArticleCount = async function() {
   const Article = mongoose.model('Article');
-  const count = await Article.countDocuments({ author: this._id, published: true });
+  const count = await Article.countDocuments({
+    author: this._id,
+    published: true,
+    ...(this.tenantId ? { tenantId: this.tenantId } : {})
+  });
   this.articleCount = count;
   await this.save();
 };
@@ -152,7 +161,7 @@ authorSchema.methods.updateArticleCount = async function() {
 authorSchema.methods.updateTotalViews = async function() {
   const Article = mongoose.model('Article');
   const result = await Article.aggregate([
-    { $match: { author: this._id, published: true } },
+    { $match: { author: this._id, published: true, ...(this.tenantId ? { tenantId: this.tenantId } : {}) } },
     { $group: { _id: null, total: { $sum: '$views' } } }
   ]);
   this.totalViews = result.length > 0 ? result[0].total : 0;

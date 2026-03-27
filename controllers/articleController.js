@@ -12,7 +12,8 @@ const logger = require('../utils/logger');
  * @access  Private/Admin
  */
 exports.getArticleById = asyncHandler(async (req, res) => {
-  const article = await Article.findById(req.params.id)
+  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const article = await Article.findOne(filter)
     .populate('category', 'name slug color description')
     .populate('author', 'name slug avatar bio socialLinks');
 
@@ -50,6 +51,9 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   
   // Build query
   const query = { published: true };
+  if (req.tenantId) {
+    query.tenantId = req.tenantId;
+  }
   
   // Region filtering
   if (region) {
@@ -184,6 +188,9 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   const language = req.query.lang || req.language || 'en';
 
   const query = {};
+  if (req.tenantId) {
+    query.tenantId = req.tenantId;
+  }
   if (publishedParam === 'true') query.published = true;
   if (publishedParam === 'false') query.published = false;
   if (category) query.category = category;
@@ -389,6 +396,7 @@ exports.trackView = asyncHandler(async (req, res) => {
   
   // Find article by slug (check all language slugs and base slug)
   const article = await Article.findOne({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { baseSlug: slug },
       { [`translations.${language}.slug`]: slug },
@@ -481,7 +489,11 @@ exports.trackView = asyncHandler(async (req, res) => {
  */
 exports.getTopArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
-  const articles = await Article.getTop(limit);
+  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), published: true })
+    .sort({ views: -1, publishedAt: -1 })
+    .limit(limit)
+    .populate('category', 'name slug color')
+    .populate('author', 'name slug avatar');
   
   res.json({
     success: true,
@@ -497,7 +509,17 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
  */
 exports.getPopularArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
-  const articles = await Article.getPopular(limit);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const articles = await Article.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    published: true,
+    publishedAt: { $gte: thirtyDaysAgo }
+  })
+    .sort({ views: -1, likes: -1, publishedAt: -1 })
+    .limit(limit)
+    .populate('category', 'name slug color')
+    .populate('author', 'name slug avatar');
   
   res.json({
     success: true,
@@ -513,7 +535,11 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
  */
 exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
-  const articles = await Article.getTrending(limit);
+  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), trending: true, published: true })
+    .sort({ publishedAt: -1 })
+    .limit(limit)
+    .populate('category', 'name slug color')
+    .populate('author', 'name slug avatar');
   
   res.json({
     success: true,
@@ -529,7 +555,11 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
  */
 exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 1;
-  const articles = await Article.getFeatured(limit);
+  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), featured: true, published: true })
+    .sort({ publishedAt: -1 })
+    .limit(limit)
+    .populate('category', 'name slug color')
+    .populate('author', 'name slug avatar');
   
   res.json({
     success: true,
@@ -567,7 +597,10 @@ exports.createArticle = asyncHandler(async (req, res) => {
   } = req.body;
   
   // Validate category exists
-  const categoryDoc = await Category.findById(category);
+  const categoryDoc = await Category.findOne({
+    _id: category,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (!categoryDoc) {
     return res.status(400).json({
       success: false,
@@ -576,7 +609,10 @@ exports.createArticle = asyncHandler(async (req, res) => {
   }
   
   // Validate author exists
-  const authorDoc = await Author.findById(author);
+  const authorDoc = await Author.findOne({
+    _id: author,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (!authorDoc) {
     return res.status(400).json({
       success: false,
@@ -586,6 +622,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
   
   // Build article data with multilingual support
   const articleData = {
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     // Multilingual fields
     baseSlug: baseSlug || (translations?.[defaultLanguage || 'en']?.slug),
     defaultLanguage: defaultLanguage || 'en',
@@ -631,7 +668,8 @@ exports.createArticle = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.updateArticle = asyncHandler(async (req, res) => {
-  const article = await Article.findById(req.params.id);
+  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const article = await Article.findOne(filter);
   
   if (!article) {
     return res.status(404).json({
@@ -693,7 +731,10 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (content) article.content = content;
   if (imageUrl) article.imageUrl = imageUrl;
   if (category) {
-    const categoryDoc = await Category.findById(category);
+    const categoryDoc = await Category.findOne({
+      _id: category,
+      ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    });
     if (!categoryDoc) {
       return res.status(400).json({
         success: false,
@@ -703,7 +744,10 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     article.category = category;
   }
   if (author) {
-    const authorDoc = await Author.findById(author);
+    const authorDoc = await Author.findOne({
+      _id: author,
+      ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    });
     if (!authorDoc) {
       return res.status(400).json({
         success: false,
@@ -722,11 +766,17 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   
   // Update counts if category or author changed
   if (category) {
-    const categoryDoc = await Category.findById(category);
+    const categoryDoc = await Category.findOne({
+      _id: category,
+      ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    });
     await categoryDoc.updatePostCount();
   }
   if (author) {
-    const authorDoc = await Author.findById(author);
+    const authorDoc = await Author.findOne({
+      _id: author,
+      ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    });
     await authorDoc.updateArticleCount();
   }
   
@@ -746,7 +796,8 @@ exports.updateArticle = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteArticle = asyncHandler(async (req, res) => {
-  const article = await Article.findById(req.params.id);
+  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const article = await Article.findOne(filter);
   
   if (!article) {
     return res.status(404).json({
@@ -761,10 +812,16 @@ exports.deleteArticle = asyncHandler(async (req, res) => {
   await article.deleteOne();
   
   // Update counts
-  const categoryDoc = await Category.findById(categoryId);
+  const categoryDoc = await Category.findOne({
+    _id: categoryId,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (categoryDoc) await categoryDoc.updatePostCount();
   
-  const authorDoc = await Author.findById(authorId);
+  const authorDoc = await Author.findOne({
+    _id: authorId,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (authorDoc) await authorDoc.updateArticleCount();
   
   res.json({

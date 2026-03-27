@@ -9,8 +9,9 @@ const { asyncHandler } = require('../middleware/errorHandler');
  */
 exports.getAllAuthors = asyncHandler(async (req, res) => {
   const language = req.language || req.query.lang || 'en';
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   
-  const authors = await Author.find()
+  const authors = await Author.find(tenantFilter)
     .sort({ articleCount: -1, name: 1 });
   
   // Transform authors to include language-specific content
@@ -48,7 +49,10 @@ exports.getAllAuthors = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.getAuthorById = asyncHandler(async (req, res) => {
-  const author = await Author.findById(req.params.id);
+  const author = await Author.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!author) {
     return res.status(404).json({
@@ -74,6 +78,7 @@ exports.getAuthorBySlug = asyncHandler(async (req, res) => {
   
   // Try to find by language-specific slug or base slug
   let author = await Author.findOne({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.slug`]: slug },
       { baseSlug: slug },
@@ -123,6 +128,7 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   
   // Find author by slug
   let author = await Author.findOne({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.slug`]: slug },
       { baseSlug: slug },
@@ -144,7 +150,8 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   // Build query with region filtering
   const query = { 
     author: author._id, 
-    published: true 
+    published: true,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
   };
   
   // Region filtering
@@ -230,6 +237,7 @@ exports.createAuthor = asyncHandler(async (req, res) => {
   const { name, bio, avatar, email, socialLinks } = req.body;
   
   const author = await Author.create({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     name,
     bio,
     avatar,
@@ -249,7 +257,10 @@ exports.createAuthor = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.updateAuthor = asyncHandler(async (req, res) => {
-  const author = await Author.findById(req.params.id);
+  const author = await Author.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!author) {
     return res.status(404).json({
@@ -282,7 +293,10 @@ exports.updateAuthor = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteAuthor = asyncHandler(async (req, res) => {
-  const author = await Author.findById(req.params.id);
+  const author = await Author.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!author) {
     return res.status(404).json({
@@ -292,7 +306,10 @@ exports.deleteAuthor = asyncHandler(async (req, res) => {
   }
   
   // Check if author has articles
-  const articleCount = await Article.countDocuments({ author: author._id });
+  const articleCount = await Article.countDocuments({
+    author: author._id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (articleCount > 0) {
     return res.status(400).json({
       success: false,

@@ -14,11 +14,15 @@ const translationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const articleSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true
+  },
   // Base fields for multilingual support
   baseSlug: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     index: true
   },
@@ -159,6 +163,7 @@ articleSchema.index({ 'translations.it.title': 'text', 'translations.it.excerpt'
 
 // Base slug and language-specific slug indexes
 articleSchema.index({ baseSlug: 1 });
+articleSchema.index({ tenantId: 1, baseSlug: 1 }, { unique: true });
 articleSchema.index({ 'translations.en.slug': 1 });
 articleSchema.index({ 'translations.fr.slug': 1 });
 articleSchema.index({ 'translations.es.slug': 1 });
@@ -168,15 +173,18 @@ articleSchema.index({ 'translations.pt.slug': 1 });
 
 // Legacy slug index (for backward compatibility)
 articleSchema.index({ slug: 1 });
+articleSchema.index({ tenantId: 1, slug: 1 });
 
 // Region and global access indexes
 articleSchema.index({ isGlobal: 1, regionRestrictions: 1 });
 articleSchema.index({ defaultLanguage: 1, published: 1 });
+articleSchema.index({ tenantId: 1, defaultLanguage: 1, published: 1 });
 
 // Other indexes
 articleSchema.index({ category: 1, published: 1 });
 articleSchema.index({ author: 1, published: 1 });
 articleSchema.index({ published: 1, publishedAt: -1 });
+articleSchema.index({ tenantId: 1, published: 1, publishedAt: -1 });
 articleSchema.index({ featured: 1, published: 1 });
 articleSchema.index({ trending: 1, published: 1 });
 articleSchema.index({ views: -1 });
@@ -294,11 +302,14 @@ articleSchema.statics.getTrending = function(limit = 10) {
 
 // Static method to search articles (with language support)
 articleSchema.statics.search = function(query, options = {}) {
-  const { limit = 10, skip = 0, category, author, language = 'en', region } = options;
+  const { limit = 10, skip = 0, category, author, language = 'en', region, tenantId } = options;
   
   const searchQuery = {
     published: true
   };
+  if (tenantId) {
+    searchQuery.tenantId = tenantId;
+  }
   
   // Region filtering
   if (region) {

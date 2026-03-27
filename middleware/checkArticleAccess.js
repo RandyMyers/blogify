@@ -8,6 +8,7 @@ const { asyncHandler } = require('./errorHandler');
 const checkArticleAccess = asyncHandler(async (req, res, next) => {
   const { slug } = req.params;
   const { language, region } = req;
+  const tenantId = req.tenantId;
   
   if (!language || !region) {
     return res.status(400).json({
@@ -18,6 +19,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
   
   // Try to find article by language-specific slug
   let article = await Article.findOne({
+    ...(tenantId ? { tenantId } : {}),
     $or: [
       { [`translations.${language}.slug`]: slug },
       { baseSlug: slug },
@@ -31,6 +33,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
     const supportedLanguages = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
     for (const lang of supportedLanguages) {
       article = await Article.findOne({
+        ...(tenantId ? { tenantId } : {}),
         [`translations.${lang}.slug`]: slug
       });
       if (article) break;
@@ -66,6 +69,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
     if (!article.regionRestrictions.includes(region)) {
       // Try to find alternative article (global version or version for this region)
       const alternative = await Article.findOne({
+        ...(tenantId ? { tenantId } : {}),
         baseSlug: article.baseSlug,
         $or: [
           { isGlobal: true },

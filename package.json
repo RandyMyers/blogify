@@ -10,6 +10,8 @@
     "seed:regions": "node scripts/seedRegions.js",
     "migrate:multilingual": "node scripts/migrateToMultilingual.js",
     "migrate:passwords": "node scripts/migratePasswords.js",
+    "migrate:tenant:articles": "node scripts/migrateArticlesToTenant.js",
+    "migrate:tenant:content": "node scripts/migrateCategoriesAuthorsToTenant.js",
     "analyze:translations": "node scripts/analyzeTranslations.js",
     "test": "NODE_ENV=test jest --coverage",
     "test:watch": "NODE_ENV=test jest --watch",

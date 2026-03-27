@@ -11,6 +11,7 @@ const Author = require('../models/Author');
 const Article = require('../models/Article');
 const User = require('../models/users');
 const Region = require('../models/Region');
+const Tenant = require('../models/Tenant');
 const generateSlug = require('../utils/generateSlug');
 
 // Supported languages
@@ -347,6 +348,21 @@ const seedDatabase = async () => {
       console.log(`✓ Regions already exist (${regionCount} regions)`);
     }
 
+    // Ensure default tenant exists
+    let defaultTenant = await Tenant.findOne({ isDefault: true });
+    if (!defaultTenant) {
+      defaultTenant = await Tenant.create({
+        name: 'Default Website',
+        slug: 'default',
+        domains: ['localhost', '127.0.0.1'],
+        isDefault: true,
+        isActive: true
+      });
+      console.log(`✓ Created default tenant: ${defaultTenant.slug}`);
+    } else {
+      console.log(`✓ Default tenant exists: ${defaultTenant.slug}`);
+    }
+
     // Clear existing blog data (do NOT clear users or regions)
     console.log('Clearing existing blog data (categories, authors, articles)...');
     await Article.deleteMany({});
@@ -461,6 +477,7 @@ const seedDatabase = async () => {
       });
 
       return {
+        tenantId: defaultTenant._id,
         baseSlug: generateSlug(cat.name),
         defaultLanguage: 'en',
         translations,
@@ -568,6 +585,7 @@ const seedDatabase = async () => {
       });
 
       return {
+        tenantId: defaultTenant._id,
         baseSlug: author.slug,
         defaultLanguage: 'en',
         name: author.name,
@@ -816,6 +834,7 @@ const seedDatabase = async () => {
       }
 
       const article = await Article.create({
+        tenantId: defaultTenant._id,
         baseSlug,
         defaultLanguage: 'en',
         translations,

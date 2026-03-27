@@ -72,6 +72,7 @@ const env = validateEnv({
 
 const cloudinary = require('cloudinary').v2;
 const requestId = require('./middleware/requestId');
+const { detectTenant } = require('./middleware/detectTenant');
 const app = express();
 
 // Trust proxy - important for getting real client IP behind reverse proxy/load balancer
@@ -80,6 +81,7 @@ app.set('trust proxy', true);
 
 // Add request ID middleware early in the chain
 app.use(requestId);
+app.use('/api', detectTenant);
 
 // --- CORS (Vercel-safe) ---
 // On Vercel/serverless, you must respond to OPTIONS preflights and include CORS headers on every path,
@@ -349,6 +351,7 @@ app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/ads', require('./routes/adRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 app.use('/api/visitors', require('./routes/visitorRoutes'));
+app.use('/api/tenants', require('./routes/tenantRoutes'));
 
 // Sitemap data routes (JSON only, used by frontend build script to generate sitemap.xml)
 app.use('/api/sitemap-data', require('./routes/sitemapDataRoutes'));

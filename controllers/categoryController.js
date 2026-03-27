@@ -9,8 +9,9 @@ const { asyncHandler } = require('../middleware/errorHandler');
  */
 exports.getAllCategories = asyncHandler(async (req, res) => {
   const language = req.language || req.query.lang || 'en';
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   
-  const categories = await Category.find()
+  const categories = await Category.find(tenantFilter)
     .sort({ postCount: -1, name: 1 });
   
   // Transform categories to include language-specific content
@@ -54,7 +55,12 @@ exports.getPopularCategories = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 4;
   const language = req.language || req.query.lang || 'en';
   
-  const categories = await Category.getPopular(limit);
+  const categories = await Category.find({
+    isPopular: true,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  })
+    .sort({ postCount: -1 })
+    .limit(limit);
   
   // Transform categories to include language-specific content
   const transformedCategories = categories.map(category => {
@@ -94,7 +100,10 @@ exports.getPopularCategories = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.getCategoryById = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id);
+  const category = await Category.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!category) {
     return res.status(404).json({
@@ -120,6 +129,7 @@ exports.getCategoryBySlug = asyncHandler(async (req, res) => {
   
   // Try to find by language-specific slug or base slug
   let category = await Category.findOne({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.slug`]: slug },
       { baseSlug: slug },
@@ -175,6 +185,7 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
   
   // Find category by slug
   let category = await Category.findOne({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.slug`]: slug },
       { baseSlug: slug },
@@ -196,7 +207,8 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
   // Build query with region filtering
   const query = { 
     category: category._id, 
-    published: true 
+    published: true,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
   };
   
   // Region filtering
@@ -294,6 +306,7 @@ exports.createCategory = asyncHandler(async (req, res) => {
   const { name, description, color, imageUrl, isPopular } = req.body;
   
   const category = await Category.create({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     name,
     description,
     color: color || 'teal',
@@ -313,7 +326,10 @@ exports.createCategory = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.updateCategory = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id);
+  const category = await Category.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!category) {
     return res.status(404).json({
@@ -344,7 +360,10 @@ exports.updateCategory = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteCategory = asyncHandler(async (req, res) => {
-  const category = await Category.findById(req.params.id);
+  const category = await Category.findOne({
+    _id: req.params.id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   
   if (!category) {
     return res.status(404).json({
@@ -354,7 +373,10 @@ exports.deleteCategory = asyncHandler(async (req, res) => {
   }
   
   // Check if category has articles
-  const articleCount = await Article.countDocuments({ category: category._id });
+  const articleCount = await Article.countDocuments({
+    category: category._id,
+    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+  });
   if (articleCount > 0) {
     return res.status(400).json({
       success: false,
