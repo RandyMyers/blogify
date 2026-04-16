@@ -6,6 +6,46 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { getClientIP, parseUserAgent, isBot, getLocationFromIP } = require('../middleware/visitorTracking');
 const logger = require('../utils/logger');
 
+const FOLLOW_BLOCKLIST = new Set(['nofollow', 'ugc', 'sponsored']);
+
+const enforceFollowLinks = (html = '') => {
+  if (typeof html !== 'string' || !html) return html;
+  return html.replace(/<a\b([^>]*)>/gi, (full, attrs = '') => {
+    const relMatch = attrs.match(/\srel\s*=\s*(['"])(.*?)\1/i);
+    if (!relMatch) return full;
+    const quote = relMatch[1];
+    const relValue = relMatch[2] || '';
+    const cleaned = relValue
+      .split(/\s+/)
+      .map((token) => token.trim().toLowerCase())
+      .filter((token) => token && !FOLLOW_BLOCKLIST.has(token));
+    const replacement = cleaned.length > 0 ? ` rel=${quote}${cleaned.join(' ')}${quote}` : '';
+    return full.replace(relMatch[0], replacement);
+  });
+};
+
+const normalizeContentParagraphs = (content) => {
+  if (!Array.isArray(content)) return content;
+  return content.map((paragraph) => enforceFollowLinks(paragraph));
+};
+
+const normalizeTranslationsForLinks = (translations) => {
+  if (!translations || typeof translations !== 'object') return translations;
+  const normalized = {};
+  Object.keys(translations).forEach((lang) => {
+    const translation = translations[lang];
+    if (!translation || typeof translation !== 'object') {
+      normalized[lang] = translation;
+      return;
+    }
+    normalized[lang] = {
+      ...translation,
+      content: normalizeContentParagraphs(translation.content)
+    };
+  });
+  return normalized;
+};
+
 /**
  * @desc    Get single article by ID (admin)
  * @route   GET /api/articles/admin/:id
@@ -620,6 +660,9 @@ exports.createArticle = asyncHandler(async (req, res) => {
     });
   }
   
+  const normalizedTranslations = normalizeTranslationsForLinks(translations || {});
+  const normalizedLegacyContent = normalizeContentParagraphs(content || normalizedTranslations?.[defaultLanguage || 'en']?.content || []);
+
   // Build article data with multilingual support
   const articleData = {
     ...(req.tenantId ? { tenantId: req.tenantId } : {}),
@@ -628,11 +671,11 @@ exports.createArticle = asyncHandler(async (req, res) => {
     defaultLanguage: defaultLanguage || 'en',
     isGlobal: isGlobal !== undefined ? isGlobal : true,
     regionRestrictions: isGlobal ? [] : (regionRestrictions || []),
-    translations: translations || {},
+    translations: normalizedTranslations,
     // Legacy fields (for backward compatibility)
     title: title || translations?.[defaultLanguage || 'en']?.title || '',
     excerpt: excerpt || translations?.[defaultLanguage || 'en']?.excerpt || '',
-    content: content || translations?.[defaultLanguage || 'en']?.content || [],
+    content: normalizedLegacyContent,
     // Shared fields
     imageUrl,
     category,
@@ -715,10 +758,11 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     article.regionRestrictions = regionRestrictions;
   }
   if (translations !== undefined) {
+    const normalizedTranslations = normalizeTranslationsForLinks(translations);
     // Merge translations; spread of Mongoose subdocs can omit or mishandle nested arrays.
     // Convert existing subdocs with toObject(), then markModified so content[] persists.
-    Object.keys(translations).forEach((lang) => {
-      const incoming = translations[lang];
+    Object.keys(normalizedTranslations).forEach((lang) => {
+      const incoming = normalizedTranslations[lang];
       if (!incoming) return;
       const existing = article.translations[lang];
       if (existing) {
@@ -737,7 +781,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   // Update legacy fields (for backward compatibility)
   if (title) article.title = title;
   if (excerpt) article.excerpt = excerpt;
-  if (content) article.content = content;
+  if (content) article.content = normalizeContentParagraphs(content);
   if (imageUrl) article.imageUrl = imageUrl;
   if (category) {
     const categoryDoc = await Category.findOne({
