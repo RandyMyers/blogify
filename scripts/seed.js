@@ -293,6 +293,61 @@ const articlesData = [
     published: true,
     featured: true,
     trending: false
+  },
+  {
+    title: 'Ultimate Style Guide: Leather Jackets, Woolen Dresses & Timeless Wardrobe Essentials',
+    excerpt: 'Discover retro leather jackets, elegant woolen dresses, embroidered blouses, and long sleeve dress guides. Plus coupon deals & scam checks. Shop smart today.',
+    metaTitle: 'Leather Jackets & Woolen Dresses | 2026 Fashion Finds',
+    metaDescription: 'Discover retro leather jackets, elegant woolen dresses, embroidered blouses, and long sleeve dress guides. Plus coupon deals & scam checks. Shop smart today.',
+    keywords: [
+      'leather jackets and woolen dresses fashion',
+      'retro leather jacket women',
+      'men’s leather jacket with mink lining',
+      'embroidered blouse outfit ideas',
+      'black long sleeve mini dress',
+      'midi black summer dress',
+      'woolen dress for Black women',
+      'red dress editorial style',
+      'bell dress sale',
+      'fashion coupon deals'
+    ],
+    content: [
+      'Fashion is about finding pieces that feel like you — whether that’s a retro leather jacket, an elegant woolen dress, or a versatile embroidered blouse. This guide brings together the season’s most exciting styles, outfit inspiration, and smart shopping tips.',
+      '<strong>1. Leather Jackets: From Retro Women’s Styles to Men’s Mink-Lined Luxury</strong><br>A great leather jacket never goes out of style. Here are four standout options for both women and men.',
+      'Women’s Fashion Design Retro Leather Jacket<br><a href="https://rounded-reveal-page.lovable.app/">Explore the Retro Leather Jacket</a>',
+      'The Essential Man Jacket: Elevate Your Outerwear Game<br><a href="https://glow-focus-page.lovable.app/">Discover The Essential Man Jacket</a>',
+      'Premium Men’s Leather Jacket with Detachable Mink Cashmere Lining<br><a href="https://blanchedalmond-crocodile-689619.hostingersite.com/">Shop Men’s Mink Lining Leather Jacket</a>',
+      'The Fur Leather Jacket: Where Luxury Meets Edge<br><a href="https://serene-display-build.lovable.app/">See the Fur Leather Jacket</a>',
+      '<strong>2. Woolen Dresses: Elegant Style for Black Women</strong><br>Cooler weather calls for warmth without sacrificing elegance.<br><a href="https://aesthetic-reveal-hub.lovable.app/">View Woolen Dress for Black Women</a>',
+      'Style tip: Pair it with knee-high boots and a structured coat for a look that works from office to evening.',
+      '<strong>3. The Embroidered Blouse: Your Wardrobe’s Ultimate Multi-Tasker</strong><br><a href="https://bloomwiz.substack.com/p/5-reasons-the-embroidered-blouse?r=827lrk&utm_campaign=post&utm_medium=web&triedRedirect=true">5 Reasons the Embroidered Blouse Is the Ultimate Wardrobe Multi-Tasker</a>',
+      'Style tip: Tuck it into high-waisted trousers for work or leave it loose over skinny jeans for the weekend.',
+      '<strong>4. Red Dress with an Editorial Edge</strong><br><a href="https://embrace-your-product.lovable.app/">Shop the Editorial Red Dress</a>',
+      'Wear it with strappy heels and minimal jewelry — let the dress do the talking.',
+      '<strong>5. Long Sleeve Dresses: Mini & Midi Guides</strong>',
+      'Black Long Sleeve Mini Dress for Every Occasion<br><a href="https://telegra.ph/The-Ultimate-Guide-to-Styling-a-Black-Long-Sleeve-Mini-Dress-for-Every-Occasion-03-31">Ultimate Mini Dress Styling Guide</a>',
+      'Midi Black Long Sleeve Summer Dress<br><a href="https://corypike12.wixsite.com/blogifique/post/the-essential-guide-to-the-midi-black-long-sleeve-black-summer-dress">Essential Guide to Midi Black Long Sleeve Dress</a>',
+      '<strong>6. Bell Dress: A Silhouette That Makes a Statement</strong><br><a href="https://trendykool.webnode.page/l/bell-dress-sale/">Shop the Bell Dress Sale</a><br><a href="https://sweet-spot-showcase-47.lovable.app/">The Bell Dress: A Silhouette That Makes a Statement</a>',
+      '<strong>7. Men’s Long Sleeve T-Shirts: Style, Fit & Versatility</strong><br><a href="https://telegra.ph/The-Ultimate-Guide-to-Mens-Long-Sleeve-T-Shirts-Style-Fit-and-Versatility-04-01">Ultimate Guide to Men’s Long Sleeve T-Shirts</a>',
+      '<strong>8. More Fashion Finds: Style Guides & Amazon Dresses</strong><br><a href="https://blogify-1769504283-5886.jimdosite.com/">Visit the Style Hub</a><br><a href="https://corypike12.wixsite.com/blogifique/post/amazon-dresses-with-low-price">Shop Amazon Dresses on a Budget</a>',
+      '<strong>Save Money: Coupons, Deals & Product Promotions</strong><br><a href="https://dealcouponz.com/stores/modamai">Modamai Coupons on DealCouponz</a>',
+      'Short links for easy access:<br><a href="http://bit.ly/4mdpxoc">bit.ly/4mdpxoc</a><br><a href="https://bit.ly/4dvTQ7o">bit.ly/4dvTQ7o</a><br><a href="https://bit.ly/4ttyhsA">bit.ly/4ttyhsA</a><br><a href="https://tinyurl.com/452dzym3">tinyurl.com/452dzym3</a><br><a href="https://tinyurl.com/3karf6dr">tinyurl.com/3karf6dr</a><br><a href="https://tinyurl.com/4c8627wb">tinyurl.com/4c8627wb</a>',
+      '<strong>Safety First: Scam checks</strong><br>modamai.com – Trust Score 51/100 (relatively low – young domain, valid SSL)<br>trendykool.com – Trust Score 72/100 (fair – probably legit, but young)<br>dealcouponz.com – Trust Score 31/100 (reasonable but very young)',
+      'Pro tip: Always use a credit card or PayPal for online shopping. Avoid wire transfers or gift card payments.',
+      '<strong>Final Thoughts</strong><br>From retro leather jackets and elegant woolen dresses to embroidered blouses and long sleeve dress guides, your next favorite piece is waiting. Use the coupons, check trust scores, and shop smart.'
+    ],
+    imageUrl: 'https://images.unsplash.com/photo-1520975693411-b62b7931c914?w=1200&auto=format&fit=crop&q=60',
+    tags: [
+      'fashion',
+      'style-guide',
+      'leather-jackets',
+      'woolen-dresses',
+      'shopping-tips',
+      'coupons'
+    ],
+    published: true,
+    featured: false,
+    trending: true
   }
 ];
 
@@ -633,7 +688,8 @@ const seedDatabase = async () => {
       { category: 'Lifestyle', author: 'Emily Rodriguez' },
       { category: 'Business', author: 'David Kim' },
       { category: 'Business', author: 'David Kim' },
-      { category: 'Design', author: 'Michael Chen' }
+      { category: 'Design', author: 'Michael Chen' },
+      { category: 'Lifestyle', author: 'Emily Rodriguez' }
     ];
 
     for (let i = 0; i < articlesData.length; i++) {
@@ -657,9 +713,9 @@ const seedDatabase = async () => {
             slug: slug,
             excerpt: articleData.excerpt,
           content: Array.isArray(articleData.content) ? articleData.content : [contentString],
-          metaTitle: articleData.title.length > 60 ? articleData.title.substring(0, 57) + '...' : articleData.title,
-          metaDescription: articleData.excerpt.length > 160 ? articleData.excerpt.substring(0, 157) + '...' : articleData.excerpt,
-          keywords: articleData.tags || []
+          metaTitle: articleData.metaTitle || (articleData.title.length > 60 ? articleData.title.substring(0, 57) + '...' : articleData.title),
+          metaDescription: articleData.metaDescription || (articleData.excerpt.length > 160 ? articleData.excerpt.substring(0, 157) + '...' : articleData.excerpt),
+          keywords: articleData.keywords || articleData.tags || []
         }
       };
 

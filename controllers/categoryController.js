@@ -303,12 +303,27 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.createCategory = asyncHandler(async (req, res) => {
-  const { name, description, color, imageUrl, isPopular } = req.body;
+  const {
+    baseSlug,
+    defaultLanguage,
+    translations,
+    name,
+    description,
+    color,
+    imageUrl,
+    isPopular
+  } = req.body;
+
+  const effectiveDefaultLanguage = defaultLanguage || 'en';
+  const defaultTranslation = translations?.[effectiveDefaultLanguage] || {};
   
   const category = await Category.create({
     ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    name,
-    description,
+    baseSlug: baseSlug || defaultTranslation.slug,
+    defaultLanguage: effectiveDefaultLanguage,
+    translations: translations || {},
+    name: name || defaultTranslation.name || '',
+    description: description || defaultTranslation.description || '',
     color: color || 'teal',
     imageUrl,
     isPopular: isPopular || false
@@ -338,8 +353,37 @@ exports.updateCategory = asyncHandler(async (req, res) => {
     });
   }
   
-  const { name, description, color, imageUrl, isPopular } = req.body;
+  const {
+    baseSlug,
+    defaultLanguage,
+    translations,
+    name,
+    description,
+    color,
+    imageUrl,
+    isPopular
+  } = req.body;
   
+  if (baseSlug !== undefined) category.baseSlug = baseSlug;
+  if (defaultLanguage !== undefined) category.defaultLanguage = defaultLanguage;
+  if (translations !== undefined) {
+    Object.keys(translations).forEach((lang) => {
+      const incoming = translations[lang];
+      if (!incoming) return;
+
+      const existing = category.translations[lang];
+      if (existing) {
+        const existingPlain =
+          typeof existing.toObject === 'function'
+            ? existing.toObject()
+            : { ...existing };
+        category.translations[lang] = { ...existingPlain, ...incoming };
+      } else {
+        category.translations[lang] = incoming;
+      }
+    });
+    category.markModified('translations');
+  }
   if (name) category.name = name;
   if (description !== undefined) category.description = description;
   if (color) category.color = color;
