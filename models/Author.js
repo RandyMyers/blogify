@@ -78,6 +78,10 @@ const authorSchema = new mongoose.Schema({
     github: { type: String, default: null },
     website: { type: String, default: null }
   },
+  customLinks: [{
+    label: { type: String, trim: true, maxlength: 80 },
+    url: { type: String, trim: true }
+  }],
   articleCount: {
     type: Number,
     default: 0,

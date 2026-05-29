@@ -13,7 +13,7 @@ exports.searchArticles = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const region = req.region || req.query.region || 'US';
   
   if (!query || query.trim() === '') {
@@ -113,7 +113,7 @@ exports.searchArticles = asyncHandler(async (req, res) => {
  */
 exports.searchCategories = asyncHandler(async (req, res) => {
   const query = req.query.q;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   if (!query || query.trim() === '') {
     return res.status(400).json({
@@ -176,7 +176,7 @@ exports.searchCategories = asyncHandler(async (req, res) => {
  */
 exports.searchAuthors = asyncHandler(async (req, res) => {
   const query = req.query.q;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   if (!query || query.trim() === '') {
     return res.status(400).json({
@@ -235,7 +235,7 @@ exports.searchAuthors = asyncHandler(async (req, res) => {
  */
 exports.globalSearch = asyncHandler(async (req, res) => {
   const query = req.query.q;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const region = req.region || req.query.region || 'US';
   
   if (!query || query.trim() === '') {

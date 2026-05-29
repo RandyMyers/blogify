@@ -103,6 +103,56 @@ exports.getRecentVisitors = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Analytics overview (traffic, geography, top pages)
+ * @route   GET /api/visitors/overview
+ * @access  Private/Admin
+ */
+exports.getOverview = asyncHandler(async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const data = await Visitor.getAnalyticsOverview(days);
+  res.json({ success: true, days, ...data });
+});
+
+/**
+ * @desc    Live visitors (recent activity)
+ * @route   GET /api/visitors/live
+ * @access  Private/Admin
+ */
+exports.getLiveActivity = asyncHandler(async (req, res) => {
+  const minutes = Math.min(Math.max(parseInt(req.query.minutes, 10) || 5, 1), 60);
+  const data = await Visitor.getLiveActivity(minutes);
+  res.json({ success: true, data });
+});
+
+/**
+ * @desc    Aggregated unique visitors list
+ * @route   GET /api/visitors/aggregated
+ * @access  Private/Admin
+ */
+exports.getAggregatedVisitors = asyncHandler(async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 500, 1000);
+  const skip = parseInt(req.query.skip, 10) || 0;
+  const { country, device } = req.query;
+  const result = await Visitor.listAggregatedVisitors({ limit, skip, country, device });
+  res.json({
+    success: true,
+    visitors: result.visitors,
+    total: result.total,
+  });
+});
+
+/**
+ * @desc    Device breakdown
+ * @route   GET /api/visitors/devices
+ * @access  Private/Admin
+ */
+exports.getDeviceBreakdown = asyncHandler(async (req, res) => {
+  const days = parseInt(req.query.days, 10) || 30;
+  const data = await Visitor.getDeviceBreakdown(days);
+  res.json({ success: true, data });
+});
+
+/**
  * @desc    Track visitor manually (for explicit tracking)
  * @route   POST /api/visitors/track
  * @access  Public

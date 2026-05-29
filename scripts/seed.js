@@ -777,7 +777,7 @@ const seedDatabase = async () => {
               content: Array.isArray(articleData.content) ? articleData.content : [contentString], // Keep same content for demo
               metaTitle: currentTranslations[lang].metaTitle,
               metaDescription: currentTranslations[lang].excerpt.substring(0, 160), // Max 160 chars
-              keywords: articleData.tags || []
+              keywords: articleData.keywords || articleData.tags || []
             };
           }
         });
@@ -867,6 +867,18 @@ const seedDatabase = async () => {
             da: { title: 'Brugeroplevelsesdesign: Uden for grænsefladen', excerpt: 'Forstå, hvordan stor UX strækker sig ud over skærme for at skabe meningsfulde menneskelige oplevelser.', metaTitle: 'UX-design | Uden for UI' },
             no: { title: 'Brukeropplevelsesdesign: Utenfor grensesnittet', excerpt: 'Forstå hvordan stor UX strekker seg utover skjermer for å skape meningsfulle menneskelige opplevelser.', metaTitle: 'UX-design | Utenfor UI' },
             nl: { title: 'Gebruikerservaringsontwerp: Voorbij de interface', excerpt: 'Begrijp hoe geweldige UX zich uitstrekt voorbij schermen om betekenisvolle menselijke ervaringen te creëren.', metaTitle: 'UX-ontwerp | Voorbij UI' }
+          },
+          10: { // Fashion Style Guide
+            fr: { title: 'Guide Ultime: Vestes en cuir, robes en laine et essentiels mode', excerpt: 'Découvrez des vestes en cuir rétro, des robes en laine élégantes, des blouses brodées et des guides robe manches longues.', metaTitle: 'Vestes en cuir et robes en laine | Trouvailles mode 2026' },
+            es: { title: 'Guía definitiva: Chaquetas de cuero, vestidos de lana y básicos atemporales', excerpt: 'Descubre chaquetas de cuero retro, vestidos de lana elegantes, blusas bordadas y guías de vestidos de manga larga.', metaTitle: 'Chaquetas de cuero y vestidos de lana | Moda 2026' },
+            de: { title: 'Ultimativer Guide: Lederjacken, Wollkleider und zeitlose Essentials', excerpt: 'Entdecken Sie Retro-Lederjacken, elegante Wollkleider, bestickte Blusen und Guides für Langarmkleider.', metaTitle: 'Lederjacken und Wollkleider | Modefunde 2026' },
+            it: { title: 'Guida definitiva: Giacche in pelle, abiti in lana ed essenziali senza tempo', excerpt: 'Scopri giacche in pelle rétro, abiti in lana eleganti, bluse ricamate e guide agli abiti a maniche lunghe.', metaTitle: 'Giacche in pelle e abiti in lana | Moda 2026' },
+            pt: { title: 'Guia definitivo: Jaquetas de couro, vestidos de lã e essenciais atemporais', excerpt: 'Descubra jaquetas de couro retrô, vestidos de lã elegantes, blusas bordadas e guias de vestidos de manga comprida.', metaTitle: 'Jaquetas de couro e vestidos de lã | Moda 2026' },
+            sv: { title: 'Ultimativ stilguide: Skinnjackor, ullklänningar och tidlösa plagg', excerpt: 'Upptäck retro skinnjackor, eleganta ullklänningar, broderade blusar och guider för långärmade klänningar.', metaTitle: 'Skinnjackor och ullklänningar | Modefynd 2026' },
+            fi: { title: 'Täydellinen tyyliopas: Nahkatakit, villamekot ja ajattomat vaatteet', excerpt: 'Löydä retro-nahkatakkeja, elegantteja villamekkoja, kirjailtuja puseroita ja pitkähihaisten mekkojen oppaita.', metaTitle: 'Nahkatakit ja villamekot | Muoti 2026' },
+            da: { title: 'Ultimativ stilguide: Læderjakker, uldkjoler og tidløse essentials', excerpt: 'Oplev retro læderjakker, elegante uldkjoler, broderede bluser og guides til langærmede kjoler.', metaTitle: 'Læderjakker og uldkjoler | Modefund 2026' },
+            no: { title: 'Ultimat stilguide: Skinnjakker, ullkjoler og tidløse garderobefavoritter', excerpt: 'Oppdag retro skinnjakker, elegante ullkjoler, broderte bluser og guider til langermede kjoler.', metaTitle: 'Skinnjakker og ullkjoler | Motefunn 2026' },
+            nl: { title: 'Ultieme stijlgids: Leren jassen, wollen jurken en tijdloze essentials', excerpt: 'Ontdek retro leren jassen, elegante wollen jurken, geborduurde blouses en gidsen voor jurken met lange mouwen.', metaTitle: 'Leren jassen en wollen jurken | Modevondsten 2026' }
           }
         };
 
@@ -882,7 +894,7 @@ const seedDatabase = async () => {
                 content: Array.isArray(articleData.content) ? articleData.content : [contentString],
                 metaTitle: currentTranslations[lang].metaTitle,
                 metaDescription: currentTranslations[lang].excerpt.substring(0, 160),
-                keywords: articleData.tags || []
+                keywords: articleData.keywords || articleData.tags || []
               };
             }
           });

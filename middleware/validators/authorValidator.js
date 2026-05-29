@@ -57,6 +57,18 @@ exports.validateCreateAuthor = [
     .optional()
     .isURL()
     .withMessage('Website URL must be a valid URL'),
+  body('customLinks')
+    .optional()
+    .isArray()
+    .withMessage('Custom links must be an array'),
+  body('customLinks.*.label')
+    .optional()
+    .trim()
+    .isLength({ max: 80 }),
+  body('customLinks.*.url')
+    .optional()
+    .isURL()
+    .withMessage('Custom link URL must be valid'),
   asyncHandler((req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -127,6 +139,18 @@ exports.validateUpdateAuthor = [
     .optional()
     .isURL()
     .withMessage('Website URL must be a valid URL'),
+  body('customLinks')
+    .optional()
+    .isArray()
+    .withMessage('Custom links must be an array'),
+  body('customLinks.*.label')
+    .optional()
+    .trim()
+    .isLength({ max: 80 }),
+  body('customLinks.*.url')
+    .optional()
+    .isURL()
+    .withMessage('Custom link URL must be valid'),
   asyncHandler((req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

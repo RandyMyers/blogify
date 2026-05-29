@@ -2,38 +2,89 @@ const Author = require('../models/Author');
 const Article = require('../models/Article');
 const { asyncHandler } = require('../middleware/errorHandler');
 
+const formatAuthorPublic = (author, language) => {
+  if (!author) return null;
+  const translation = author.getTranslation(language);
+  const defaultTranslation = author.getTranslation(author.defaultLanguage);
+  const activeTranslation = translation || defaultTranslation;
+
+  return {
+    _id: author._id,
+    baseSlug: author.baseSlug,
+    slug: activeTranslation?.slug || author.slug || author.baseSlug,
+    name: author.name,
+    bio: activeTranslation?.bio || author.bio,
+    avatar: author.avatar,
+    email: author.email,
+    socialLinks: author.socialLinks || {},
+    customLinks: (author.customLinks || []).filter((link) => link?.url),
+    articleCount: author.articleCount,
+    totalViews: author.totalViews,
+    language,
+  };
+};
+
+const { transformArticleForPublic } = require('../utils/publicContent');
+
+const applyAuthorPayload = (author, body) => {
+  const {
+    name,
+    bio,
+    avatar,
+    email,
+    socialLinks,
+    customLinks,
+    baseSlug,
+    defaultLanguage,
+    translations,
+    slug,
+  } = body;
+
+  if (name) author.name = name;
+  if (bio !== undefined) author.bio = bio;
+  if (avatar !== undefined) author.avatar = avatar;
+  if (email !== undefined) author.email = email;
+  if (baseSlug) author.baseSlug = baseSlug;
+  if (defaultLanguage) author.defaultLanguage = defaultLanguage;
+  if (slug) author.slug = slug;
+
+  if (socialLinks) {
+    author.socialLinks = { ...author.socialLinks, ...socialLinks };
+  }
+
+  if (Array.isArray(customLinks)) {
+    author.customLinks = customLinks
+      .filter((link) => link && link.url && String(link.url).trim())
+      .map((link) => ({
+        label: String(link.label || link.url).trim().slice(0, 80),
+        url: String(link.url).trim(),
+      }));
+  }
+
+  if (translations && typeof translations === 'object') {
+    Object.entries(translations).forEach(([lang, value]) => {
+      if (!value || typeof value !== 'object') return;
+      author.translations[lang] = {
+        ...(author.translations[lang]?.toObject?.() || author.translations[lang] || {}),
+        ...value,
+      };
+    });
+  }
+};
+
 /**
  * @desc    Get all authors (multilingual support)
  * @route   GET /api/authors
  * @access  Public
  */
 exports.getAllAuthors = asyncHandler(async (req, res) => {
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   
   const authors = await Author.find(tenantFilter)
     .sort({ articleCount: -1, name: 1 });
   
-  // Transform authors to include language-specific content
-  const transformedAuthors = authors.map(author => {
-    const translation = author.getTranslation(language);
-    const defaultTranslation = author.getTranslation(author.defaultLanguage);
-    const activeTranslation = translation || defaultTranslation;
-    
-    return {
-      _id: author._id,
-      baseSlug: author.baseSlug,
-      slug: activeTranslation?.slug || author.slug,
-      name: author.name,
-      bio: activeTranslation?.bio || author.bio,
-      avatar: author.avatar,
-      email: author.email,
-      socialLinks: author.socialLinks,
-      articleCount: author.articleCount,
-      totalViews: author.totalViews,
-      language: language
-    };
-  });
+  const transformedAuthors = authors.map((author) => formatAuthorPublic(author, language));
   
   res.json({
     success: true,
@@ -74,7 +125,7 @@ exports.getAuthorById = asyncHandler(async (req, res) => {
  */
 exports.getAuthorBySlug = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   // Try to find by language-specific slug or base slug
   let author = await Author.findOne({
@@ -93,26 +144,9 @@ exports.getAuthorBySlug = asyncHandler(async (req, res) => {
     });
   }
   
-  // Get translation for current language
-  const translation = author.getTranslation(language);
-  const defaultTranslation = author.getTranslation(author.defaultLanguage);
-  const activeTranslation = translation || defaultTranslation;
-  
   res.json({
     success: true,
-    data: {
-      _id: author._id,
-      baseSlug: author.baseSlug,
-      slug: activeTranslation?.slug || author.slug,
-      name: author.name,
-      bio: activeTranslation?.bio || author.bio,
-      avatar: author.avatar,
-      email: author.email,
-      socialLinks: author.socialLinks,
-      articleCount: author.articleCount,
-      totalViews: author.totalViews,
-      language: language
-    }
+    data: formatAuthorPublic(author, language),
   });
 });
 
@@ -123,7 +157,7 @@ exports.getAuthorBySlug = asyncHandler(async (req, res) => {
  */
 exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const region = req.region || req.query.region || 'US';
   
   // Find author by slug
@@ -169,44 +203,14 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
-  // Transform articles to include language-specific content
-  const transformedArticles = articles.map(article => {
-    const translation = article.getTranslation(language);
-    const defaultTranslation = article.getTranslation(article.defaultLanguage);
-    const activeTranslation = translation || defaultTranslation;
-    
-    if (!activeTranslation) {
-      return null;
-    }
-    
-    return {
-      _id: article._id,
-      baseSlug: article.baseSlug,
-      slug: activeTranslation.slug,
-      title: activeTranslation.title,
-      excerpt: activeTranslation.excerpt,
-      content: activeTranslation.content,
-      imageUrl: article.imageUrl,
-      category: article.category,
-      author: article.author,
-      tags: article.tags,
-      publishedAt: article.publishedAt,
-      views: article.views,
-      likes: article.likes,
-      readTime: article.readTime,
-      language: language
-    };
-  }).filter(article => article !== null);
-  
+  const transformedArticles = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter(Boolean);
+
   const total = await Article.countDocuments(query);
-  
-  // Get author translation
-  const authorTranslation = author.getTranslation(language);
-  const defaultAuthorTranslation = author.getTranslation(author.defaultLanguage);
-  const activeAuthorTranslation = authorTranslation || defaultAuthorTranslation;
-  
+
   res.json({
     success: true,
     count: transformedArticles.length,
@@ -215,16 +219,8 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     pages: Math.ceil(total / limit),
     language,
     region,
-    author: {
-      _id: author._id,
-      baseSlug: author.baseSlug,
-      slug: activeAuthorTranslation?.slug || author.slug,
-      name: author.name,
-      avatar: author.avatar,
-      bio: activeAuthorTranslation?.bio || author.bio,
-      socialLinks: author.socialLinks
-    },
-    data: transformedArticles
+    author: formatAuthorPublic(author, language),
+    data: transformedArticles,
   });
 });
 
@@ -234,20 +230,24 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.createAuthor = asyncHandler(async (req, res) => {
-  const { name, bio, avatar, email, socialLinks } = req.body;
-  
-  const author = await Author.create({
+  const payload = { ...req.body };
+  if (!payload.baseSlug && payload.name) {
+    const generateSlug = require('../utils/generateSlug');
+    payload.baseSlug = generateSlug(payload.name);
+  }
+
+  const author = new Author({
     ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    name,
-    bio,
-    avatar,
-    email,
-    socialLinks: socialLinks || {}
+    name: payload.name,
+    baseSlug: payload.baseSlug,
+    defaultLanguage: payload.defaultLanguage || 'en',
   });
-  
+  applyAuthorPayload(author, payload);
+  await author.save();
+
   res.status(201).json({
     success: true,
-    data: author
+    data: author,
   });
 });
 
@@ -259,31 +259,22 @@ exports.createAuthor = asyncHandler(async (req, res) => {
 exports.updateAuthor = asyncHandler(async (req, res) => {
   const author = await Author.findOne({
     _id: req.params.id,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
   });
-  
+
   if (!author) {
     return res.status(404).json({
       success: false,
-      message: 'Author not found'
+      message: 'Author not found',
     });
   }
-  
-  const { name, bio, avatar, email, socialLinks } = req.body;
-  
-  if (name) author.name = name;
-  if (bio !== undefined) author.bio = bio;
-  if (avatar !== undefined) author.avatar = avatar;
-  if (email) author.email = email;
-  if (socialLinks) {
-    author.socialLinks = { ...author.socialLinks, ...socialLinks };
-  }
-  
+
+  applyAuthorPayload(author, req.body);
   await author.save();
-  
+
   res.json({
     success: true,
-    data: author
+    data: author,
   });
 });
 

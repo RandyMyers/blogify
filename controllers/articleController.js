@@ -46,6 +46,28 @@ const normalizeTranslationsForLinks = (translations) => {
   return normalized;
 };
 
+const { formatPopulatedAuthor, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
+
+const resolveRequestLanguage = (req) =>
+  (req.query.lang || req.language || 'en').toLowerCase();
+
+const transformArticleForPublic = (article, language) => {
+  const base = transformArticlePublic(article, language);
+  if (!base) return null;
+  const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
+  return {
+    ...base,
+    seo: {
+      metaTitle: translation?.metaTitle,
+      metaDescription: translation?.metaDescription,
+      keywords: translation?.keywords,
+    },
+    availableLanguages: article.getAvailableLanguages(),
+    isGlobal: article.isGlobal,
+    regionRestrictions: article.regionRestrictions,
+  };
+};
+
 /**
  * @desc    Get single article by ID (admin)
  * @route   GET /api/articles/admin/:id
@@ -86,8 +108,8 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   const trending = req.query.trending === 'true';
   
   // Get language and region from request (set by detectRegion middleware)
-  const language = req.language || req.query.lang || 'en';
-  const region = req.region || req.query.region || 'US';
+  const language = resolveRequestLanguage(req);
+  const region = req.query.region || req.region || 'US';
   
   // Build query
   const query = { published: true };
@@ -131,72 +153,11 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
-  // Transform articles to include language-specific content
-  const transformedArticles = articles.map(article => {
-    const translation = article.getTranslation(language);
-    const defaultTranslation = article.getTranslation(article.defaultLanguage);
-    const activeTranslation = translation || defaultTranslation;
-    
-    if (!activeTranslation) {
-      return null;
-    }
-    
-    // Get category translation if available
-    let categoryData = article.category;
-    if (article.category && article.category.getTranslation) {
-      const categoryTranslation = article.category.getTranslation(language);
-      if (categoryTranslation) {
-        categoryData = {
-          ...article.category.toObject(),
-          name: categoryTranslation.name || article.category.name,
-          slug: categoryTranslation.slug || article.category.slug,
-          description: categoryTranslation.description || article.category.description
-        };
-      }
-    }
-    
-    // Get author translation if available
-    let authorData = article.author;
-    if (article.author && article.author.getTranslation) {
-      const authorTranslation = article.author.getTranslation(language);
-      if (authorTranslation) {
-        authorData = {
-          ...article.author.toObject(),
-          bio: authorTranslation.bio || article.author.bio
-        };
-      }
-    }
-    
-    return {
-      _id: article._id,
-      baseSlug: article.baseSlug,
-      slug: activeTranslation.slug,
-      title: activeTranslation.title,
-      excerpt: activeTranslation.excerpt,
-      content: activeTranslation.content,
-      imageUrl: article.imageUrl,
-      category: categoryData,
-      author: authorData,
-      tags: article.tags,
-      publishedAt: article.publishedAt,
-      views: article.views,
-      likes: article.likes,
-      readTime: article.readTime,
-      featured: article.featured,
-      trending: article.trending,
-      seo: {
-        metaTitle: activeTranslation.metaTitle,
-        metaDescription: activeTranslation.metaDescription,
-        keywords: activeTranslation.keywords
-      },
-      language: language,
-      availableLanguages: article.getAvailableLanguages(),
-      isGlobal: article.isGlobal,
-      regionRestrictions: article.regionRestrictions
-    };
-  }).filter(article => article !== null);
+  const transformedArticles = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter((article) => article !== null);
   
   const total = await Article.countDocuments(query);
   
@@ -225,7 +186,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   const category = req.query.category;
   const author = req.query.author;
   const publishedParam = req.query.published; // 'true' | 'false' | undefined (all)
-  const language = req.query.lang || req.language || 'en';
+  const language = resolveRequestLanguage(req);
 
   const query = {};
   if (req.tenantId) {
@@ -241,7 +202,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const transformedArticles = articles.map(article => {
     const translation = article.getTranslation(language);
@@ -330,7 +291,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
 exports.getArticleBySlug = asyncHandler(async (req, res) => {
   // Article should already be attached by checkArticleAccess middleware
   const article = req.article;
-  const language = req.language || 'en';
+  const language = resolveRequestLanguage(req);
   
   if (!article) {
     return res.status(404).json({
@@ -432,7 +393,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
  */
 exports.trackView = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const language = req.language || req.query.lang || 'en';
+  const language = resolveRequestLanguage(req);
   
   // Find article by slug (check all language slugs and base slug)
   const article = await Article.findOne({
@@ -478,9 +439,7 @@ exports.trackView = asyncHandler(async (req, res) => {
       const location = await getLocationFromIP(ip);
       const userId = req.user ? req.user._id : null;
       const sessionId = req.cookies?.sessionId || null;
-      const language = req.language || req.query.lang || 
-                      req.headers['accept-language']?.split(',')[0]?.split('-')[0] || 
-                      'en';
+      const language = resolveRequestLanguage(req);
       
       await Visitor.create({
         ipAddress: ip,
@@ -529,16 +488,22 @@ exports.trackView = asyncHandler(async (req, res) => {
  */
 exports.getTopArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
+  const language = resolveRequestLanguage(req);
   const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), published: true })
     .sort({ views: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
-  
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
+
+  const data = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter(Boolean);
+
   res.json({
     success: true,
-    count: articles.length,
-    data: articles
+    count: data.length,
+    language,
+    data,
   });
 });
 
@@ -549,22 +514,28 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
  */
 exports.getPopularArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
+  const language = resolveRequestLanguage(req);
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const articles = await Article.find({
     ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     published: true,
-    publishedAt: { $gte: thirtyDaysAgo }
+    publishedAt: { $gte: thirtyDaysAgo },
   })
     .sort({ views: -1, likes: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
-  
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
+
+  const data = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter(Boolean);
+
   res.json({
     success: true,
-    count: articles.length,
-    data: articles
+    count: data.length,
+    language,
+    data,
   });
 });
 
@@ -575,16 +546,26 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
  */
 exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
-  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), trending: true, published: true })
+  const language = resolveRequestLanguage(req);
+  const articles = await Article.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    trending: true,
+    published: true,
+  })
     .sort({ publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
-  
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
+
+  const data = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter(Boolean);
+
   res.json({
     success: true,
-    count: articles.length,
-    data: articles
+    count: data.length,
+    language,
+    data,
   });
 });
 
@@ -595,16 +576,26 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
  */
 exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 1;
-  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), featured: true, published: true })
+  const language = resolveRequestLanguage(req);
+  const articles = await Article.find({
+    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    featured: true,
+    published: true,
+  })
     .sort({ publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
-  
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
+
+  const data = articles
+    .map((article) => transformArticleForPublic(article, language))
+    .filter(Boolean);
+
   res.json({
     success: true,
-    count: articles.length,
-    data: articles
+    count: data.length,
+    language,
+    data,
   });
 });
 
@@ -697,7 +688,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
   
   const populatedArticle = await Article.findById(article._id)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   res.status(201).json({
     success: true,
@@ -835,7 +826,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   
   const populatedArticle = await Article.findById(article._id)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   res.json({
     success: true,

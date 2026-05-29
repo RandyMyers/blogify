@@ -8,7 +8,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
  * @access  Public
  */
 exports.getAllCategories = asyncHandler(async (req, res) => {
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   
   const categories = await Category.find(tenantFilter)
@@ -53,7 +53,7 @@ exports.getAllCategories = asyncHandler(async (req, res) => {
  */
 exports.getPopularCategories = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 4;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   const categories = await Category.find({
     isPopular: true,
@@ -125,7 +125,7 @@ exports.getCategoryById = asyncHandler(async (req, res) => {
  */
 exports.getCategoryBySlug = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   // Try to find by language-specific slug or base slug
   let category = await Category.findOne({
@@ -180,7 +180,7 @@ exports.getCategoryBySlug = asyncHandler(async (req, res) => {
  */
 exports.getCategoryArticles = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const language = req.language || req.query.lang || 'en';
+  const language = (req.query.lang || req.language || 'en').toLowerCase();
   const region = req.region || req.query.region || 'US';
   
   // Find category by slug
