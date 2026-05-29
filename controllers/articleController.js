@@ -186,6 +186,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   const category = req.query.category;
   const author = req.query.author;
   const publishedParam = req.query.published; // 'true' | 'false' | undefined (all)
+  const search = String(req.query.search || '').trim();
   const language = resolveRequestLanguage(req);
 
   const query = {};
@@ -196,6 +197,26 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   if (publishedParam === 'false') query.published = false;
   if (category) query.category = category;
   if (author) query.author = author;
+
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    query.$or = [
+      { baseSlug: regex },
+      { 'translations.en.title': regex },
+      { 'translations.en.slug': regex },
+      { 'translations.fr.title': regex },
+      { 'translations.es.title': regex },
+      { 'translations.de.title': regex },
+      { 'translations.it.title': regex },
+      { 'translations.pt.title': regex },
+      { 'translations.da.title': regex },
+      { 'translations.no.title': regex },
+      { 'translations.sv.title': regex },
+      { 'translations.fi.title': regex },
+      { 'translations.nl.title': regex },
+    ];
+  }
 
   const articles = await Article.find(query)
     .sort({ updatedAt: -1, createdAt: -1 })

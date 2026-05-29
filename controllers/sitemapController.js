@@ -4,7 +4,7 @@ const Author = require('../models/Author');
 const Region = require('../models/Region');
 
 // Base URL from environment or default
-const BASE_URL = process.env.CLIENT_URL || 'https://blogify.com';
+const BASE_URL = process.env.CLIENT_URL || 'https://bloomwik.com';
 
 // All supported languages
 const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];

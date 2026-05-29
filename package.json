@@ -13,6 +13,9 @@
     "migrate:tenant:articles": "node scripts/migrateArticlesToTenant.js",
     "migrate:tenant:content": "node scripts/migrateCategoriesAuthorsToTenant.js",
     "analyze:translations": "node scripts/analyzeTranslations.js",
+    "check:categories": "node scripts/checkCategoryTranslations.js",
+    "setup:bloomwik": "node scripts/setupBloomwikTenant.js",
+    "verify:golive": "node scripts/verifyGoLive.js",
     "test": "NODE_ENV=test jest --coverage",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage"

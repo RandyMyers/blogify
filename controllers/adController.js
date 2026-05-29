@@ -1,4 +1,6 @@
 const Ad = require('../models/Ad');
+const AdEvent = require('../models/AdEvent');
+const mongoose = require('mongoose');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { selectAds, selectRandomAd } = require('../utils/adSelector');
 
@@ -225,6 +227,7 @@ exports.trackImpression = asyncHandler(async (req, res) => {
   // Increment impressions
   ad.impressions = (ad.impressions || 0) + 1;
   await ad.save();
+  await AdEvent.create({ adId: ad._id, type: 'impression' });
   
   res.json({
     success: true,
@@ -250,6 +253,7 @@ exports.trackClick = asyncHandler(async (req, res) => {
   // Increment clicks
   ad.clicks = (ad.clicks || 0) + 1;
   await ad.save();
+  await AdEvent.create({ adId: ad._id, type: 'click' });
   
   res.json({
     success: true,
@@ -263,44 +267,72 @@ exports.trackClick = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.getAnalytics = asyncHandler(async (req, res) => {
-  const { startDate, endDate, adId } = req.query;
-  
-  let query = {};
-  
-  if (adId) {
-    query._id = adId;
-  }
-  
-  const ads = await Ad.find(query);
-  
-  // Calculate totals
+  const { adId } = req.query;
+  const days = Math.min(parseInt(req.query.days, 10) || 30, 90);
+
+  const adQuery = adId ? { _id: adId } : {};
+  const ads = await Ad.find(adQuery);
+
   const totalImpressions = ads.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
   const totalClicks = ads.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
-  const averageCTR = totalImpressions > 0 
-    ? ((totalClicks / totalImpressions) * 100).toFixed(2)
+  const averageCTR = totalImpressions > 0
+    ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2))
     : 0;
-  
-  // Get top performing ads
+
   const topAds = ads
-    .map(ad => ({
+    .map((ad) => ({
       _id: ad._id,
       name: ad.name,
       impressions: ad.impressions || 0,
       clicks: ad.clicks || 0,
-      ctr: ad.ctr || 0
+      ctr: ad.impressions > 0 ? parseFloat(((ad.clicks / ad.impressions) * 100).toFixed(2)) : 0,
     }))
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, 10);
-  
+
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+
+  const eventMatch = { createdAt: { $gte: start } };
+  if (adId) {
+    eventMatch.adId = new mongoose.Types.ObjectId(adId);
+  }
+
+  const dailyRows = await AdEvent.aggregate([
+    { $match: eventMatch },
+    {
+      $group: {
+        _id: {
+          date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          type: '$type',
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { '_id.date': 1 } },
+  ]);
+
+  const impressionsByDay = [];
+  const clicksByDay = [];
+  dailyRows.forEach((row) => {
+    const point = { date: row._id.date, count: row.count };
+    if (row._id.type === 'impression') impressionsByDay.push(point);
+    if (row._id.type === 'click') clicksByDay.push(point);
+  });
+
   res.json({
     success: true,
     data: {
       totalAds: ads.length,
       totalImpressions,
       totalClicks,
-      averageCTR: parseFloat(averageCTR),
-      topAds
-    }
+      averageCTR,
+      topAds,
+      impressionsByDay,
+      clicksByDay,
+      days,
+    },
   });
 });
 

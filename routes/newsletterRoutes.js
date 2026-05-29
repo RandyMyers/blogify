@@ -5,7 +5,8 @@ const {
   confirmSubscription,
   unsubscribe,
   getSubscribers,
-  getSubscribersCount
+  getSubscribersCount,
+  exportSubscribers,
 } = require('../controllers/newsletterController');
 const { protect, isAdmin } = require('../middleware/auth');
 const { validateSubscribe, validateToken } = require('../middleware/validators/newsletterValidator');
@@ -17,6 +18,7 @@ router.get('/unsubscribe/:token', validateToken, unsubscribe);
 
 // Admin routes - protected
 router.get('/subscribers/count', protect, isAdmin, getSubscribersCount);
+router.get('/subscribers/export', protect, isAdmin, exportSubscribers);
 router.get('/subscribers', protect, isAdmin, getSubscribers);
 
 module.exports = router;

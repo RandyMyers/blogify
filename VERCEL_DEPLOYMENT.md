@@ -1,4 +1,59 @@
-# Vercel Deployment Guide
+# Vercel Deployment Guide — Bloomwik API
+
+## Bloomwik production URLs
+
+| Variable | Production value |
+|----------|------------------|
+| `CLIENT_URL` | `https://bloomwik.com` |
+| `ADMIN_URL` | Your admin host (e.g. Netlify admin URL) |
+
+After updating env vars, **redeploy** Production from the Vercel dashboard.
+
+---
+
+## Environment Variables Setup in Vercel
+
+### Required Variables
+
+Go to your Vercel project → **Settings → Environment Variables** → **Production**:
+
+```
+MONGO_URL=mongodb+srv://...
+JWT_SECRET=your-very-strong-secret-minimum-32-characters
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+CLIENT_URL=https://bloomwik.com
+ADMIN_URL=https://your-admin-url.com
+NODE_ENV=production
+```
+
+### Optional Variables
+
+```
+LOG_LEVEL=info
+ENABLE_JOBS=false
+USE_IP_API=false
+JWT_EXPIRES_IN=7d
+```
+
+### Using Vercel CLI (optional)
+
+```bash
+cd server
+vercel login
+vercel link
+
+vercel env add CLIENT_URL production
+# enter: https://bloomwik.com
+
+vercel env add ADMIN_URL production
+# enter: your admin panel URL
+
+vercel --prod
+```
+
+---
 
 ## Issues Fixed
 
@@ -81,11 +136,12 @@ Create `vercel.json` in server root:
 
 ## Post-Deployment Checklist
 
-- [ ] Environment variables set in Vercel dashboard
+- [ ] `CLIENT_URL=https://bloomwik.com` set in Vercel
+- [ ] `npm run setup:bloomwik` run (or tenant domains set in admin)
 - [ ] Deployment succeeds without errors
-- [ ] API endpoints respond correctly
-- [ ] Database connection works
-- [ ] Health check endpoint works: `https://your-api.vercel.app/health`
+- [ ] Health check: `https://blogify-sooty-one.vercel.app/health`
+- [ ] CORS: open bloomwik.com → Network tab → API calls return 200
+- [ ] New routes deployed: `/api/users`, `/api/tenants`, `AdEvent` model
 
 ---
 

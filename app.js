@@ -43,6 +43,7 @@ if (envResult.error && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_N
 // Now require modules that might use process.env
 const logger = require('./utils/logger');
 const { validateEnv } = require('./utils/envValidator');
+const { isAllowedOrigin, buildAllowedOrigins } = require('./utils/corsOrigins');
 const authRoutes = require('./routes/authRoutes');
 
 // Validate required environment variables
@@ -88,30 +89,16 @@ app.use('/api', detectTenant);
 // including error responses. We set headers early so they apply even if later middleware throws.
 const isDevelopment = env.NODE_ENV !== 'production';
 
-const isAllowedOrigin = (origin) => {
-  if (!origin) return isDevelopment; // allow non-browser tools (no Origin) only in dev
-
-  // Local dev
-  if (isDevelopment && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
-    return true;
-  }
-
-  // Explicit allowlist via env
-  if (origin === env.CLIENT_URL || origin === env.ADMIN_URL) {
-    return true;
-  }
-
-  // Hosting platforms
-  if (origin.endsWith('.netlify.app') || origin.endsWith('.vercel.app')) {
-    return true;
-  }
-
-  return false;
-};
+const isAllowedOriginForRequest = (origin) =>
+  isAllowedOrigin(origin, {
+    clientUrl: env.CLIENT_URL,
+    adminUrl: env.ADMIN_URL,
+    isDevelopment,
+  });
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (isAllowedOrigin(origin)) {
+  if (isAllowedOriginForRequest(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
     // Only set credentials if you actually use cookies; keep it true for now because server uses cookieParser.
@@ -235,15 +222,11 @@ const authLimiter = rateLimit({
   }
 });
 
-const allowedOrigins = [
-  env.CLIENT_URL,
-  env.ADMIN_URL,
-  // Netlify URLs
-  'https://fabulous-arithmetic-400162.netlify.app',
-  'https://eloquent-taffy-866b1b.netlify.app',
-  // Always allow localhost in development
-  ...(isDevelopment ? ['http://localhost:3000', 'http://localhost:3001'] : [])
-].filter(Boolean);
+const allowedOrigins = buildAllowedOrigins({
+  clientUrl: env.CLIENT_URL,
+  adminUrl: env.ADMIN_URL,
+  isDevelopment,
+});
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -251,22 +234,11 @@ app.use(cors({
     if (!origin && isDevelopment) {
       return callback(null, true);
     }
-    
-    // In development, allow localhost origins
-    if (isDevelopment && origin && (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
+
+    if (isAllowedOriginForRequest(origin)) {
       return callback(null, true);
     }
-    
-    // Allow Netlify domains (including preview deployments)
-    if (origin && (origin.includes('.netlify.app') || origin.includes('netlify.app'))) {
-      return callback(null, true);
-    }
-    
-    // Allow Vercel domains (in case admin is hosted there)
-    if (origin && origin.includes('.vercel.app')) {
-      return callback(null, true);
-    }
-    
+
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -353,6 +325,7 @@ app.use('/api/ads', require('./routes/adRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 app.use('/api/visitors', require('./routes/visitorRoutes'));
 app.use('/api/tenants', require('./routes/tenantRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
 
 // Sitemap data routes (JSON only, used by frontend build script to generate sitemap.xml)
 app.use('/api/sitemap-data', require('./routes/sitemapDataRoutes'));

@@ -6,10 +6,10 @@ const router = express.Router();
  * Tells search engine crawlers which pages they can access
  */
 router.get('/robots.txt', (req, res) => {
-  // Point search engines to the frontend sitemap hosted on Netlify
-  const frontendUrl = 'https://fabulous-arithmetic-400162.netlify.app';
+  // Point search engines to the frontend sitemap (bloomwik.com on Hostinger)
+  const frontendUrl = process.env.CLIENT_URL || 'https://bloomwik.com';
 
-  let robotsTxt = `# Blogify Robots.txt
+  let robotsTxt = `# Bloomwik Robots.txt
 # Allow all search engines to crawl the site
 
 User-agent: *

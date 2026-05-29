@@ -44,13 +44,20 @@ exports.getAllMessages = asyncHandler(async (req, res) => {
   
   const read = req.query.read;
   const replied = req.query.replied;
-  
+  const search = String(req.query.search || '').trim();
+
   const query = {};
   if (read === 'true') query.read = true;
   else if (read === 'false') query.read = false;
-  
+
   if (replied === 'true') query.replied = true;
   else if (replied === 'false') query.replied = false;
+
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    query.$or = [{ name: regex }, { email: regex }, { subject: regex }, { message: regex }];
+  }
   
   const messages = await ContactMessage.find(query)
     .sort({ createdAt: -1 })
