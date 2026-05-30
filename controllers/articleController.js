@@ -46,7 +46,8 @@ const normalizeTranslationsForLinks = (translations) => {
   return normalized;
 };
 
-const { formatPopulatedAuthor, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
+const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
+const { notifyArticlePublished } = require('../utils/indexNow');
 
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
@@ -337,31 +338,9 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
   // Increment views
   await article.incrementViews();
   
-  // Get category translation if available
-  let categoryData = article.category;
-  if (article.category && article.category.getTranslation) {
-    const categoryTranslation = article.category.getTranslation(language);
-    if (categoryTranslation) {
-      categoryData = {
-        ...article.category.toObject(),
-        name: categoryTranslation.name || article.category.name,
-        slug: categoryTranslation.slug || article.category.slug,
-        description: categoryTranslation.description || article.category.description
-      };
-    }
-  }
-  
-  // Get author translation if available
-  let authorData = article.author;
-  if (article.author && article.author.getTranslation) {
-    const authorTranslation = article.author.getTranslation(language);
-    if (authorTranslation) {
-      authorData = {
-        ...article.author.toObject(),
-        bio: authorTranslation.bio || article.author.bio
-      };
-    }
-  }
+  // Get formatted author & category (populated in checkArticleAccess)
+  const authorData = formatPopulatedAuthor(article.author, language);
+  const categoryData = formatPopulatedCategory(article.category, language);
   
   // Build available translations object
   const availableTranslations = {};
@@ -714,7 +693,15 @@ exports.createArticle = asyncHandler(async (req, res) => {
   const populatedArticle = await Article.findById(article._id)
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
-  
+
+  if (article.published) {
+    setImmediate(() => {
+      notifyArticlePublished(article, { tenantId: req.tenantId }).catch((err) => {
+        logger.warn('IndexNow notify failed (create):', err.message);
+      });
+    });
+  }
+
   res.status(201).json({
     success: true,
     data: populatedArticle
@@ -854,7 +841,15 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   const populatedArticle = await Article.findById(article._id)
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
-  
+
+  if (article.published) {
+    setImmediate(() => {
+      notifyArticlePublished(article, { tenantId: req.tenantId }).catch((err) => {
+        logger.warn('IndexNow notify failed (update):', err.message);
+      });
+    });
+  }
+
   res.json({
     success: true,
     data: populatedArticle

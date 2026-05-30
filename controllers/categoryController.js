@@ -1,6 +1,8 @@
 const Category = require('../models/Category');
 const Article = require('../models/Article');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { formatPopulatedAuthor, formatPopulatedCategory } = require('../utils/publicContent');
+const { isObjectIdString } = require('../utils/objectIdUtils');
 
 /**
  * @desc    Get all categories (multilingual support)
@@ -95,6 +97,24 @@ exports.getPopularCategories = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    List all categories for admin (raw documents, no locale transform)
+ * @route   GET /api/categories/admin/list
+ * @access  Private/Admin
+ */
+exports.getCategoriesForAdmin = asyncHandler(async (req, res) => {
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
+
+  const categories = await Category.find(tenantFilter)
+    .sort({ postCount: -1, baseSlug: 1 });
+
+  res.json({
+    success: true,
+    count: categories.length,
+    data: categories,
+  });
+});
+
+/**
  * @desc    Get single category by ID
  * @route   GET /api/categories/admin/:id
  * @access  Private/Admin
@@ -128,13 +148,19 @@ exports.getCategoryBySlug = asyncHandler(async (req, res) => {
   const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   // Try to find by language-specific slug or base slug
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
+  const slugOr = [
+    { [`translations.${language}.slug`]: slug },
+    { baseSlug: slug },
+    { slug: slug },
+  ];
+  if (isObjectIdString(slug)) {
+    slugOr.push({ _id: slug, ...tenantFilter });
+  }
+
   let category = await Category.findOne({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    $or: [
-      { [`translations.${language}.slug`]: slug },
-      { baseSlug: slug },
-      { slug: slug } // Legacy support
-    ]
+    ...tenantFilter,
+    $or: slugOr,
   });
   
   if (!category) {
@@ -184,13 +210,19 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
   const region = req.region || req.query.region || 'US';
   
   // Find category by slug
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
+  const slugOr = [
+    { [`translations.${language}.slug`]: slug },
+    { baseSlug: slug },
+    { slug: slug },
+  ];
+  if (isObjectIdString(slug)) {
+    slugOr.push({ _id: slug, ...tenantFilter });
+  }
+
   let category = await Category.findOne({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    $or: [
-      { [`translations.${language}.slug`]: slug },
-      { baseSlug: slug },
-      { slug: slug } // Legacy support
-    ]
+    ...tenantFilter,
+    $or: slugOr,
   });
   
   if (!category) {
@@ -226,29 +258,15 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
     .skip(skip)
     .limit(limit)
     .populate('category', 'name slug color')
-    .populate('author', 'name slug avatar');
+    .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
-  // Transform articles to include language-specific content
-  const transformedArticles = articles.map(article => {
+  const transformedArticles = articles.map((article) => {
     const translation = article.getTranslation(language);
     const defaultTranslation = article.getTranslation(article.defaultLanguage);
     const activeTranslation = translation || defaultTranslation;
     
     if (!activeTranslation) {
       return null;
-    }
-    
-    // Get category translation
-    let categoryData = article.category;
-    if (article.category && article.category.getTranslation) {
-      const categoryTranslation = article.category.getTranslation(language);
-      if (categoryTranslation) {
-        categoryData = {
-          ...article.category.toObject(),
-          name: categoryTranslation.name || article.category.name,
-          slug: categoryTranslation.slug || article.category.slug
-        };
-      }
     }
     
     return {
@@ -259,8 +277,8 @@ exports.getCategoryArticles = asyncHandler(async (req, res) => {
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
       imageUrl: article.imageUrl,
-      category: categoryData,
-      author: article.author,
+      category: formatPopulatedCategory(article.category, language),
+      author: formatPopulatedAuthor(article.author, language),
       tags: article.tags,
       publishedAt: article.publishedAt,
       views: article.views,

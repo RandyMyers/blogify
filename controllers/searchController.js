@@ -2,6 +2,7 @@ const Article = require('../models/Article');
 const Category = require('../models/Category');
 const Author = require('../models/Author');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { formatPopulatedAuthor, formatPopulatedCategory } = require('../utils/publicContent');
 
 /**
  * @desc    Search articles (multilingual support)
@@ -46,18 +47,7 @@ exports.searchArticles = asyncHandler(async (req, res) => {
       return null;
     }
     
-    // Get category translation if available
-    let categoryData = article.category;
-    if (article.category && article.category.getTranslation) {
-      const categoryTranslation = article.category.getTranslation(language);
-      if (categoryTranslation) {
-        categoryData = {
-          ...article.category.toObject(),
-          name: categoryTranslation.name || article.category.name,
-          slug: categoryTranslation.slug || article.category.slug
-        };
-      }
-    }
+    // Get category translation if available — formatPopulatedCategory handles this
     
     return {
       _id: article._id,
@@ -67,8 +57,8 @@ exports.searchArticles = asyncHandler(async (req, res) => {
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
       imageUrl: article.imageUrl,
-      category: categoryData,
-      author: article.author,
+      category: formatPopulatedCategory(article.category, language),
+      author: formatPopulatedAuthor(article.author, language),
       tags: article.tags,
       publishedAt: article.publishedAt,
       views: article.views,

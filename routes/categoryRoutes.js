@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getAllCategories,
   getPopularCategories,
+  getCategoriesForAdmin,
   getCategoryById,
   getCategoryBySlug,
   getCategoryArticles,
@@ -24,6 +25,7 @@ router.get('/:slug', getCategoryBySlug);
 router.get('/', getAllCategories);
 
 // Admin routes - protected (must be before public :slug route)
+router.get('/admin/list', protect, isAdmin, getCategoriesForAdmin);
 router.get('/admin/:id', protect, isAdmin, getCategoryById);
 router.post('/', protect, isAdmin, validateCreateCategory, createCategory);
 router.put('/:id', protect, isAdmin, validateUpdateCategory, updateCategory);

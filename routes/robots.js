@@ -18,6 +18,9 @@ Allow: /
 # Disallow admin and API routes
 Disallow: /api/
 Disallow: /admin/
+Disallow: /search
+Disallow: /bookmarks
+Disallow: /confirm-subscription
 
 # Sitemap location
 Sitemap: ${frontendUrl}/sitemap.xml

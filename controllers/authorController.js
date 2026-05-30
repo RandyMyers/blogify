@@ -25,6 +25,7 @@ const formatAuthorPublic = (author, language) => {
 };
 
 const { transformArticleForPublic } = require('../utils/publicContent');
+const { isObjectIdString } = require('../utils/objectIdUtils');
 
 const applyAuthorPayload = (author, body) => {
   const {
@@ -128,13 +129,19 @@ exports.getAuthorBySlug = asyncHandler(async (req, res) => {
   const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   // Try to find by language-specific slug or base slug
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
+  const slugOr = [
+    { [`translations.${language}.slug`]: slug },
+    { baseSlug: slug },
+    { slug: slug },
+  ];
+  if (isObjectIdString(slug)) {
+    slugOr.push({ _id: slug, ...tenantFilter });
+  }
+
   let author = await Author.findOne({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    $or: [
-      { [`translations.${language}.slug`]: slug },
-      { baseSlug: slug },
-      { slug: slug } // Legacy support
-    ]
+    ...tenantFilter,
+    $or: slugOr,
   });
   
   if (!author) {
@@ -161,13 +168,19 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const region = req.region || req.query.region || 'US';
   
   // Find author by slug
+  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
+  const slugOr = [
+    { [`translations.${language}.slug`]: slug },
+    { baseSlug: slug },
+    { slug: slug },
+  ];
+  if (isObjectIdString(slug)) {
+    slugOr.push({ _id: slug, ...tenantFilter });
+  }
+
   let author = await Author.findOne({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-    $or: [
-      { [`translations.${language}.slug`]: slug },
-      { baseSlug: slug },
-      { slug: slug } // Legacy support
-    ]
+    ...tenantFilter,
+    $or: slugOr,
   });
   
   if (!author) {

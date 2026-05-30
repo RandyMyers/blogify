@@ -12,6 +12,7 @@ const {
   bulkDeleteAdminComments,
   exportAdminComments,
   getArticleCommentCounts,
+  getAdminCommentUrls,
 } = require('../controllers/commentController');
 const { protect, isAdmin } = require('../middleware/auth');
 
@@ -29,6 +30,7 @@ const commentPostLimiter = rateLimit({
 });
 
 router.get('/admin/stats', protect, isAdmin, getAdminStats);
+router.get('/admin/urls', protect, isAdmin, getAdminCommentUrls);
 router.get('/admin/export', protect, isAdmin, exportAdminComments);
 router.get('/admin/article/:articleId/counts', protect, isAdmin, getArticleCommentCounts);
 router.patch('/admin/bulk/status', protect, isAdmin, bulkUpdateAdminComments);

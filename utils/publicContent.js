@@ -1,6 +1,8 @@
 const formatPopulatedAuthor = (author, language) => {
   if (!author) return null;
+  if (typeof author === 'string') return null;
   const base = author.toObject ? author.toObject() : { ...author };
+  if (!base.name && !base._id) return null;
   let slug = base.slug || base.baseSlug;
   if (typeof author.getTranslation === 'function') {
     const tr = author.getTranslation(language);
@@ -8,9 +10,33 @@ const formatPopulatedAuthor = (author, language) => {
   }
   return {
     _id: base._id,
-    name: base.name,
+    name: base.name || 'Author',
     slug,
     avatar: base.avatar,
+  };
+};
+
+const formatPopulatedCategory = (category, language) => {
+  if (!category) return null;
+  if (typeof category === 'string') return null;
+  const base = category.toObject ? category.toObject() : { ...category };
+  let slug = base.slug || base.baseSlug;
+  let name = base.name;
+  let description = base.description;
+  if (typeof category.getTranslation === 'function') {
+    const tr = category.getTranslation(language);
+    if (tr) {
+      if (tr.slug) slug = tr.slug;
+      if (tr.name) name = tr.name;
+      if (tr.description) description = tr.description;
+    }
+  }
+  return {
+    _id: base._id,
+    name: name || 'Category',
+    slug,
+    color: base.color,
+    description,
   };
 };
 
@@ -23,19 +49,6 @@ const transformArticleForPublic = (article, language) => {
     return null;
   }
 
-  let categoryData = article.category;
-  if (article.category && article.category.getTranslation) {
-    const categoryTranslation = article.category.getTranslation(language);
-    if (categoryTranslation) {
-      categoryData = {
-        ...article.category.toObject(),
-        name: categoryTranslation.name || article.category.name,
-        slug: categoryTranslation.slug || article.category.slug,
-        description: categoryTranslation.description || article.category.description,
-      };
-    }
-  }
-
   return {
     _id: article._id,
     baseSlug: article.baseSlug,
@@ -45,7 +58,7 @@ const transformArticleForPublic = (article, language) => {
     content: activeTranslation.content,
     imageUrl: article.imageUrl,
     imageAlt: article.imageAlt || '',
-    category: categoryData,
+    category: formatPopulatedCategory(article.category, language),
     author: formatPopulatedAuthor(article.author, language),
     tags: article.tags,
     publishedAt: article.publishedAt,
@@ -61,5 +74,6 @@ const transformArticleForPublic = (article, language) => {
 
 module.exports = {
   formatPopulatedAuthor,
+  formatPopulatedCategory,
   transformArticleForPublic,
 };

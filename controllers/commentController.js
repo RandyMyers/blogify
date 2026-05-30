@@ -6,11 +6,11 @@ const {
   sanitizeCommentBody,
   sanitizeAuthorName,
   sanitizeEmail,
-  sanitizeWebsite,
   isValidEmail,
   hashIp,
   getClientIp,
   toPublicComment,
+  extractUrlsFromCommentBody,
 } = require('../utils/sanitizeComment');
 
 /** Admin lists include tenant-scoped comments plus legacy rows without tenantId. */
@@ -119,7 +119,6 @@ exports.createComment = asyncHandler(async (req, res) => {
 
   const authorName = sanitizeAuthorName(req.body.authorName);
   const authorEmail = sanitizeEmail(req.body.authorEmail);
-  const authorWebsite = sanitizeWebsite(req.body.authorWebsite);
   const body = sanitizeCommentBody(req.body.body);
   const language = (req.body.language || 'en').toLowerCase();
   const parentId = req.body.parentId || null;
@@ -165,7 +164,7 @@ exports.createComment = asyncHandler(async (req, res) => {
     parentId: parentId || null,
     authorName,
     authorEmail,
-    authorWebsite,
+    authorWebsite: '',
     body,
     language,
     status: 'pending',
@@ -257,6 +256,84 @@ exports.getAdminComments = asyncHandler(async (req, res) => {
     page,
     pages: Math.ceil(total / limit) || 1,
     data: comments,
+  });
+});
+
+/**
+ * @desc    Admin list URLs found in comment bodies
+ * @route   GET /api/comments/admin/urls
+ */
+exports.getAdminCommentUrls = asyncHandler(async (req, res) => {
+  const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
+  const status = req.query.status;
+  const search = String(req.query.search || '').trim().toLowerCase();
+
+  const query = { ...adminTenantFilter(req) };
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+
+  const comments = await Comment.find(query)
+    .select('body status authorName createdAt articleSlug _id')
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const urlMap = new Map();
+
+  for (const comment of comments) {
+    const urls = extractUrlsFromCommentBody(comment.body);
+    for (const url of urls) {
+      if (search && !url.toLowerCase().includes(search)) continue;
+
+      if (!urlMap.has(url)) {
+        urlMap.set(url, {
+          url,
+          count: 0,
+          lastUsedAt: null,
+          statusCounts: { pending: 0, approved: 0, spam: 0, rejected: 0 },
+          recentComments: [],
+        });
+      }
+
+      const entry = urlMap.get(url);
+      entry.count += 1;
+      const statusKey = comment.status || 'pending';
+      entry.statusCounts[statusKey] = (entry.statusCounts[statusKey] || 0) + 1;
+
+      const createdAt = comment.createdAt ? new Date(comment.createdAt) : null;
+      if (createdAt && (!entry.lastUsedAt || createdAt > entry.lastUsedAt)) {
+        entry.lastUsedAt = createdAt;
+      }
+
+      if (entry.recentComments.length < 5) {
+        entry.recentComments.push({
+          _id: comment._id,
+          authorName: comment.authorName,
+          status: comment.status,
+          articleSlug: comment.articleSlug,
+          createdAt: comment.createdAt,
+        });
+      }
+    }
+  }
+
+  const rows = [...urlMap.values()].sort((a, b) => {
+    if (b.count !== a.count) return b.count - a.count;
+    return new Date(b.lastUsedAt || 0) - new Date(a.lastUsedAt || 0);
+  });
+
+  const total = rows.length;
+  const skip = (page - 1) * limit;
+  const data = rows.slice(skip, skip + limit);
+
+  res.json({
+    success: true,
+    count: data.length,
+    total,
+    page,
+    pages: Math.ceil(total / limit) || 1,
+    data,
   });
 });
 
