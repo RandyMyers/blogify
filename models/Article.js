@@ -10,7 +10,15 @@ const translationSchema = new mongoose.Schema({
   content: [String],
   metaTitle: { type: String, maxlength: 60 },
   metaDescription: { type: String, maxlength: 160 },
-  keywords: [String]
+  keywords: [String],
+  focusKeyword: { type: String, maxlength: 80, trim: true, default: '' },
+  canonicalUrl: { type: String, trim: true, default: '' },
+  robots: {
+    type: String,
+    default: 'index,follow',
+    enum: ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'],
+  },
+  ogImage: { type: String, trim: true, default: '' },
 }, { _id: false });
 
 const articleSchema = new mongoose.Schema({
@@ -144,6 +152,17 @@ const articleSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
     index: true
+  },
+  seoScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: null,
+    index: true,
+  },
+  seoScoreUpdatedAt: {
+    type: Date,
+    default: null,
   },
   // Legacy SEO field (kept for backward compatibility)
   seo: {

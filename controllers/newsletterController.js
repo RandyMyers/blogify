@@ -1,5 +1,7 @@
 const NewsletterSubscription = require('../models/NewsletterSubscription');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { sendNewsletterConfirmationEmail } = require('../utils/emailService');
+const logger = require('../utils/logger');
 
 /**
  * @desc    Subscribe to newsletter
@@ -8,26 +10,25 @@ const { asyncHandler } = require('../middleware/errorHandler');
  */
 exports.subscribe = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  
+
   if (!email) {
     return res.status(400).json({
       success: false,
-      message: 'Email is required'
+      message: 'Email is required',
     });
   }
-  
-  // Check if already subscribed
+
   let subscription = await NewsletterSubscription.findOne({ email });
-  
+  let isResend = false;
+
   if (subscription) {
     if (subscription.confirmed && !subscription.unsubscribed) {
       return res.status(400).json({
         success: false,
-        message: 'Email is already subscribed'
+        message: 'This email is already subscribed to our newsletter.',
       });
     }
-    
-    // If unsubscribed, resubscribe
+
     if (subscription.unsubscribed) {
       subscription.unsubscribed = false;
       subscription.unsubscribedAt = null;
@@ -35,23 +36,26 @@ exports.subscribe = asyncHandler(async (req, res) => {
       subscription.confirmed = false;
       subscription.confirmedAt = null;
       await subscription.save();
+    } else if (!subscription.confirmed) {
+      isResend = true;
     }
   } else {
-    // Create new subscription
     subscription = await NewsletterSubscription.create({ email });
   }
-  
-  // In production, send confirmation email here
-  // For now, we'll return the token for testing
-  // In production, the token should be sent via email
-  
+
+  try {
+    await sendNewsletterConfirmationEmail(subscription);
+  } catch (err) {
+    logger.warn('[newsletter] confirmation email failed', { email, error: err.message });
+  }
+
+  const message = isResend
+    ? 'We sent another confirmation email. Please check your inbox.'
+    : 'Thank you for subscribing! Please check your email to confirm your subscription.';
+
   res.status(201).json({
     success: true,
-    message: 'Subscription request received. Please check your email to confirm.',
-    data: {
-      token: subscription.token, // Remove in production, only for testing
-      email: subscription.email
-    }
+    message,
   });
 });
 
@@ -62,28 +66,28 @@ exports.subscribe = asyncHandler(async (req, res) => {
  */
 exports.confirmSubscription = asyncHandler(async (req, res) => {
   const { token } = req.params;
-  
-  const subscription = await NewsletterSubscription.findByToken(token);
-  
-  if (!subscription) {
+
+  const subscription = await NewsletterSubscription.findOne({ token });
+
+  if (!subscription || subscription.unsubscribed) {
     return res.status(404).json({
       success: false,
-      message: 'Invalid or expired confirmation token'
+      message: 'Invalid or expired confirmation token',
     });
   }
-  
+
   if (subscription.confirmed) {
     return res.status(400).json({
       success: false,
-      message: 'Subscription already confirmed'
+      message: 'Your subscription was already confirmed',
     });
   }
-  
+
   await subscription.confirm();
-  
+
   res.json({
     success: true,
-    message: 'Subscription confirmed successfully'
+    message: 'Your subscription has been confirmed! You will now receive our latest articles and updates.',
   });
 });
 
@@ -94,28 +98,28 @@ exports.confirmSubscription = asyncHandler(async (req, res) => {
  */
 exports.unsubscribe = asyncHandler(async (req, res) => {
   const { token } = req.params;
-  
-  const subscription = await NewsletterSubscription.findByToken(token);
-  
+
+  const subscription = await NewsletterSubscription.findOne({ token });
+
   if (!subscription) {
     return res.status(404).json({
       success: false,
-      message: 'Invalid or expired unsubscribe token'
+      message: 'Invalid or expired unsubscribe link',
     });
   }
-  
+
   if (subscription.unsubscribed) {
-    return res.status(400).json({
-      success: false,
-      message: 'Already unsubscribed'
+    return res.json({
+      success: true,
+      message: 'You are already unsubscribed from our newsletter.',
     });
   }
-  
+
   await subscription.unsubscribe();
-  
+
   res.json({
     success: true,
-    message: 'Successfully unsubscribed from newsletter'
+    message: 'You have been successfully unsubscribed from our newsletter.',
   });
 });
 
@@ -227,22 +231,21 @@ exports.exportSubscribers = asyncHandler(async (req, res) => {
 exports.getSubscribersCount = asyncHandler(async (req, res) => {
   const activeCount = await NewsletterSubscription.countDocuments({
     confirmed: true,
-    unsubscribed: false
+    unsubscribed: false,
   });
-  
+
   const totalCount = await NewsletterSubscription.countDocuments();
   const unconfirmedCount = await NewsletterSubscription.countDocuments({
-    confirmed: false
+    confirmed: false,
+    unsubscribed: false,
   });
-  
+
   res.json({
     success: true,
     data: {
       active: activeCount,
       total: totalCount,
-      unconfirmed: unconfirmedCount
-    }
+      unconfirmed: unconfirmedCount,
+    },
   });
 });
-
-

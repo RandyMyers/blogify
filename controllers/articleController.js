@@ -48,9 +48,26 @@ const normalizeTranslationsForLinks = (translations) => {
 
 const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
+const { getOrCreateSeoSettings } = require('./seoSettingsController');
+const {
+  analyzeArticlePayload,
+  applySeoScoreToDocument,
+} = require('../utils/articleSeoHelpers');
 
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
+
+function buildTranslationSeo(translation) {
+  return {
+    metaTitle: translation?.metaTitle,
+    metaDescription: translation?.metaDescription,
+    keywords: translation?.keywords,
+    focusKeyword: translation?.focusKeyword || '',
+    canonicalUrl: translation?.canonicalUrl || '',
+    robots: translation?.robots || 'index,follow',
+    ogImage: translation?.ogImage || '',
+  };
+}
 
 const transformArticleForPublic = (article, language) => {
   const base = transformArticlePublic(article, language);
@@ -58,11 +75,7 @@ const transformArticleForPublic = (article, language) => {
   const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
   return {
     ...base,
-    seo: {
-      metaTitle: translation?.metaTitle,
-      metaDescription: translation?.metaDescription,
-      keywords: translation?.keywords,
-    },
+    seo: buildTranslationSeo(translation),
     availableLanguages: article.getAvailableLanguages(),
     isGlobal: article.isGlobal,
     regionRestrictions: article.regionRestrictions,
@@ -188,6 +201,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   const author = req.query.author;
   const publishedParam = req.query.published; // 'true' | 'false' | undefined (all)
   const search = String(req.query.search || '').trim();
+  const seoFilter = req.query.seoFilter;
   const language = resolveRequestLanguage(req);
 
   const query = {};
@@ -199,10 +213,20 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   if (category) query.category = category;
   if (author) query.author = author;
 
+  if (seoFilter === 'needs_improvement') {
+    query.$or = [
+      { seoScore: { $lt: 60 } },
+      { seoScore: null },
+      { seoScore: { $exists: false } },
+    ];
+  } else if (seoFilter === 'good') {
+    query.seoScore = { $gte: 60 };
+  }
+
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escaped, 'i');
-    query.$or = [
+    const searchOr = [
       { baseSlug: regex },
       { 'translations.en.title': regex },
       { 'translations.en.slug': regex },
@@ -217,6 +241,12 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
       { 'translations.fi.title': regex },
       { 'translations.nl.title': regex },
     ];
+    if (query.$or) {
+      query.$and = [{ $or: query.$or }, { $or: searchOr }];
+      delete query.$or;
+    } else {
+      query.$or = searchOr;
+    }
   }
 
   const articles = await Article.find(query)
@@ -284,11 +314,9 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
       regionRestrictions: article.regionRestrictions,
       createdAt: article.createdAt,
       updatedAt: article.updatedAt,
-      seo: {
-        metaTitle: activeTranslation.metaTitle,
-        metaDescription: activeTranslation.metaDescription,
-        keywords: activeTranslation.keywords
-      },
+      seoScore: article.seoScore,
+      seoScoreUpdatedAt: article.seoScoreUpdatedAt,
+      seo: buildTranslationSeo(activeTranslation),
       language,
       availableLanguages: article.getAvailableLanguages()
     };
@@ -375,11 +403,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       readTime: article.readTime,
       featured: article.featured,
       trending: article.trending,
-      seo: {
-        metaTitle: activeTranslation.metaTitle,
-        metaDescription: activeTranslation.metaDescription,
-        keywords: activeTranslation.keywords
-      },
+      seo: buildTranslationSeo(activeTranslation),
       language: language,
       availableTranslations: availableTranslations,
       isGlobal: article.isGlobal,
@@ -683,6 +707,10 @@ exports.createArticle = asyncHandler(async (req, res) => {
   };
   
   const article = await Article.create(articleData);
+
+  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
+  applySeoScoreToDocument(article, seoSettings.siteUrl);
+  await article.save();
   
   // Update category post count
   await categoryDoc.updatePostCount();
@@ -819,6 +847,9 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (typeof featured === 'boolean') article.featured = featured;
   if (typeof trending === 'boolean') article.trending = trending;
   if (seo) article.seo = { ...article.seo, ...seo };
+
+  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
+  applySeoScoreToDocument(article, seoSettings.siteUrl);
   
   await article.save();
   
@@ -853,6 +884,20 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: populatedArticle
+  });
+});
+
+/**
+ * @desc    Analyze article SEO (admin preview, same rules as editor)
+ * @route   POST /api/articles/admin/analyze-seo
+ * @access  Private/Admin
+ */
+exports.analyzeArticleSeo = asyncHandler(async (req, res) => {
+  const settings = await getOrCreateSeoSettings(req.tenantId);
+  const analysis = analyzeArticlePayload(req.body, settings.siteUrl);
+  res.json({
+    success: true,
+    data: analysis,
   });
 });
 

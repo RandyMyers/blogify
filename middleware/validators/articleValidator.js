@@ -38,6 +38,25 @@ exports.validateCreateArticle = [
     .trim()
     .isLength({ max: 160 })
     .withMessage('Meta description cannot exceed 160 characters'),
+  body('translations.*.focusKeyword')
+    .optional()
+    .trim()
+    .isLength({ max: 80 })
+    .withMessage('Focus keyword cannot exceed 80 characters'),
+  body('translations.*.canonicalUrl')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Canonical URL must be a valid URL'),
+  body('translations.*.ogImage')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('OG image URL must be a valid URL'),
+  body('translations.*.robots')
+    .optional()
+    .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
+    .withMessage('Invalid robots directive'),
   body('category')
     .notEmpty()
     .withMessage('Category is required')
@@ -144,6 +163,25 @@ exports.validateUpdateArticle = [
     .trim()
     .isLength({ max: 160 })
     .withMessage('Meta description cannot exceed 160 characters'),
+  body('translations.*.focusKeyword')
+    .optional()
+    .trim()
+    .isLength({ max: 80 })
+    .withMessage('Focus keyword cannot exceed 80 characters'),
+  body('translations.*.canonicalUrl')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Canonical URL must be a valid URL'),
+  body('translations.*.ogImage')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('OG image URL must be a valid URL'),
+  body('translations.*.robots')
+    .optional()
+    .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
+    .withMessage('Invalid robots directive'),
   body('category')
     .optional()
     .custom((value) => {

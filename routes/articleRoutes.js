@@ -12,12 +12,14 @@ const {
   createArticle,
   updateArticle,
   deleteArticle,
-  trackView
+  trackView,
+  analyzeArticleSeo,
 } = require('../controllers/articleController');
 const { protect, isAdmin } = require('../middleware/auth');
 const { detectRegion } = require('../middleware/detectRegion');
 const { checkArticleAccess } = require('../middleware/checkArticleAccess');
 const { validateCreateArticle, validateUpdateArticle, validateArticleId } = require('../middleware/validators/articleValidator');
+const { validateArticlePublishSeo } = require('../middleware/validateArticlePublishSeo');
 
 // Apply region detection to all routes
 router.use(detectRegion);
@@ -34,9 +36,10 @@ router.get('/', getAllArticles);
 
 // Admin routes - protected (order matters: /admin/list before /admin/:id)
 router.get('/admin/list', protect, isAdmin, getAllArticlesAdmin);
-router.post('/', protect, isAdmin, validateCreateArticle, createArticle);
+router.post('/admin/analyze-seo', protect, isAdmin, analyzeArticleSeo);
+router.post('/', protect, isAdmin, validateCreateArticle, validateArticlePublishSeo, createArticle);
 router.get('/admin/:id', protect, isAdmin, validateArticleId, getArticleById);
-router.put('/:id', protect, isAdmin, validateUpdateArticle, updateArticle);
+router.put('/:id', protect, isAdmin, validateUpdateArticle, validateArticlePublishSeo, updateArticle);
 router.delete('/:id', protect, isAdmin, validateArticleId, deleteArticle);
 
 module.exports = router;

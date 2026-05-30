@@ -24,6 +24,14 @@ const DEFAULTS = {
   comments: {
     autoApproveVerifiedReaders: false,
   },
+  contentSeo: {
+    minPublishScore: 0,
+    warnPublishScore: 60,
+    requireFocusKeyword: false,
+    requireMetaOnPublish: true,
+    metaTitleTemplate: '{{title}} | {{siteName}}',
+    metaDescriptionTemplate: '{{excerpt}}',
+  },
 };
 
 async function getOrCreateSettings(tenantId) {
@@ -53,6 +61,7 @@ function toPublicSettings(doc) {
     indexNow: { ...DEFAULTS.indexNow, ...obj.indexNow },
     searchConsole: { ...DEFAULTS.searchConsole, ...obj.searchConsole },
     comments: { ...DEFAULTS.comments, ...obj.comments },
+    contentSeo: { ...DEFAULTS.contentSeo, ...obj.contentSeo },
     updatedAt: obj.updatedAt,
   };
 }
@@ -100,11 +109,15 @@ exports.updateSeoSettings = asyncHandler(async (req, res) => {
   if (body.comments && typeof body.comments === 'object') {
     Object.assign(doc.comments, body.comments);
   }
+  if (body.contentSeo && typeof body.contentSeo === 'object') {
+    Object.assign(doc.contentSeo, body.contentSeo);
+  }
 
   doc.markModified('sitemap');
   doc.markModified('indexNow');
   doc.markModified('searchConsole');
   doc.markModified('comments');
+  doc.markModified('contentSeo');
   await doc.save();
 
   res.json({

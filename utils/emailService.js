@@ -105,6 +105,27 @@ async function sendReaderPasswordResetEmail(user, rawToken) {
   return sendEmail({ to: user.email, subject, html, text });
 }
 
+async function sendNewsletterConfirmationEmail(subscription) {
+  const confirmUrl = `${CLIENT_URL}/confirm-subscription?token=${encodeURIComponent(subscription.token)}`;
+  const unsubscribeUrl = `${CLIENT_URL}/unsubscribe?token=${encodeURIComponent(subscription.token)}`;
+  const subject = 'Confirm your Bloomwik newsletter subscription';
+  const text = `Thanks for subscribing to Bloomwik!\n\nConfirm your subscription:\n${confirmUrl}\n\nIf you did not subscribe, ignore this email.\n\nTo unsubscribe later:\n${unsubscribeUrl}`;
+  const html = `
+    <p>Thanks for subscribing to the Bloomwik newsletter!</p>
+    <p>Please confirm your email address to start receiving our latest articles:</p>
+    <p><a href="${confirmUrl}">Confirm my subscription</a></p>
+    <p>Or copy this link: ${confirmUrl}</p>
+    <p>If you did not subscribe, you can ignore this email.</p>
+    <p style="font-size:12px;color:#666;margin-top:24px;">To unsubscribe: <a href="${unsubscribeUrl}">${unsubscribeUrl}</a></p>
+  `;
+  const result = await sendEmail({ to: subscription.email, subject, html, text });
+  if (result.sent) {
+    subscription.lastEmailSent = new Date();
+    await subscription.save();
+  }
+  return result;
+}
+
 module.exports = {
   sendEmail,
   isEmailConfigured,
@@ -112,4 +133,5 @@ module.exports = {
   hashToken,
   sendReaderVerificationEmail,
   sendReaderPasswordResetEmail,
+  sendNewsletterConfirmationEmail,
 };
