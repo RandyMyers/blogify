@@ -327,6 +327,7 @@ app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 app.use('/api/visitors', require('./routes/visitorRoutes'));
 app.use('/api/tenants', require('./routes/tenantRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/admin/readers', require('./routes/readerAdminRoutes'));
 app.use('/api/admin/seo-settings', require('./routes/seoSettingsRoutes'));
 
 // Sitemap data routes (JSON only, used by frontend build script to generate sitemap.xml)

@@ -130,6 +130,14 @@ exports.loginReader = asyncHandler(async (req, res) => {
     });
   }
 
+  if (user.isBanned) {
+    return res.status(403).json({
+      success: false,
+      message: 'Your account has been suspended. Contact support if you believe this is an error.',
+      code: 'ACCOUNT_BANNED',
+    });
+  }
+
   const isMatch = await user.comparePassword(password);
   if (!isMatch) {
     return res.status(401).json({

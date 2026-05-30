@@ -21,6 +21,9 @@ const DEFAULTS = {
   searchConsole: {
     autoSubmitSitemap: false,
   },
+  comments: {
+    autoApproveVerifiedReaders: false,
+  },
 };
 
 async function getOrCreateSettings(tenantId) {
@@ -49,6 +52,7 @@ function toPublicSettings(doc) {
     sitemap: { ...DEFAULTS.sitemap, ...obj.sitemap },
     indexNow: { ...DEFAULTS.indexNow, ...obj.indexNow },
     searchConsole: { ...DEFAULTS.searchConsole, ...obj.searchConsole },
+    comments: { ...DEFAULTS.comments, ...obj.comments },
     updatedAt: obj.updatedAt,
   };
 }
@@ -93,10 +97,14 @@ exports.updateSeoSettings = asyncHandler(async (req, res) => {
   if (body.searchConsole && typeof body.searchConsole === 'object') {
     Object.assign(doc.searchConsole, body.searchConsole);
   }
+  if (body.comments && typeof body.comments === 'object') {
+    Object.assign(doc.comments, body.comments);
+  }
 
   doc.markModified('sitemap');
   doc.markModified('indexNow');
   doc.markModified('searchConsole');
+  doc.markModified('comments');
   await doc.save();
 
   res.json({

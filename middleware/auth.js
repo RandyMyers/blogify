@@ -48,6 +48,14 @@ exports.protect = asyncHandler(async (req, res, next) => {
       });
     }
 
+    if (req.user.role === 'reader' && req.user.isBanned) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been suspended.',
+        code: 'ACCOUNT_BANNED',
+      });
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({

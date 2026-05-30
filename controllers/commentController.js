@@ -2,6 +2,7 @@ const Comment = require('../models/Comment');
 const Article = require('../models/Article');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { syncCommentCount } = require('../utils/commentCount');
+const { getOrCreateSeoSettings } = require('./seoSettingsController');
 const {
   sanitizeCommentBody,
   sanitizeAuthorName,
@@ -153,6 +154,12 @@ exports.createComment = asyncHandler(async (req, res) => {
 
   const tenantId = article.tenantId || req.tenantId || undefined;
 
+  const settings = await getOrCreateSeoSettings(tenantId || req.tenantId);
+  const autoApprove = Boolean(
+    settings.comments?.autoApproveVerifiedReaders && req.user.emailVerified
+  );
+  const status = autoApprove ? 'approved' : 'pending';
+
   const comment = await Comment.create({
     ...(tenantId ? { tenantId } : {}),
     articleId: article._id,
@@ -164,14 +171,21 @@ exports.createComment = asyncHandler(async (req, res) => {
     authorWebsite: '',
     body,
     language,
-    status: 'pending',
+    status,
+    ...(autoApprove ? { approvedAt: new Date() } : {}),
     ipHash: hashIp(getClientIp(req)),
     userAgent: String(req.headers['user-agent'] || '').slice(0, 500),
   });
 
+  if (autoApprove) {
+    await syncCommentCount(article._id);
+  }
+
   res.status(201).json({
     success: true,
-    message: 'Thank you — your comment is awaiting moderation.',
+    message: autoApprove
+      ? 'Your comment has been posted.'
+      : 'Thank you — your comment is awaiting moderation.',
     data: { _id: comment._id, status: comment.status, parentId: comment.parentId },
   });
 });
@@ -210,6 +224,7 @@ exports.getAdminComments = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
   const status = req.query.status;
   const articleId = req.query.articleId;
+  const userId = req.query.userId;
   const search = String(req.query.search || '').trim();
 
   const query = { ...adminTenantFilter(req) };
@@ -220,6 +235,10 @@ exports.getAdminComments = asyncHandler(async (req, res) => {
 
   if (articleId) {
     query.articleId = articleId;
+  }
+
+  if (userId) {
+    query.userId = userId;
   }
 
   if (search) {
@@ -541,5 +560,50 @@ exports.getArticleCommentCounts = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: { pending, approved, spam, rejected, total },
+  });
+});
+
+/**
+ * @desc    Admin comment moderation settings
+ * @route   GET /api/comments/admin/settings
+ */
+exports.getAdminCommentSettings = asyncHandler(async (req, res) => {
+  const settings = await getOrCreateSeoSettings(req.tenantId);
+  res.json({
+    success: true,
+    data: {
+      autoApproveVerifiedReaders: Boolean(settings.comments?.autoApproveVerifiedReaders),
+    },
+  });
+});
+
+/**
+ * @desc    Update admin comment moderation settings
+ * @route   PATCH /api/comments/admin/settings
+ */
+exports.updateAdminCommentSettings = asyncHandler(async (req, res) => {
+  if (!req.tenantId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Select a tenant before saving comment settings',
+    });
+  }
+
+  const settings = await getOrCreateSeoSettings(req.tenantId);
+
+  if (req.body.autoApproveVerifiedReaders !== undefined) {
+    if (!settings.comments) {
+      settings.comments = { autoApproveVerifiedReaders: false };
+    }
+    settings.comments.autoApproveVerifiedReaders = Boolean(req.body.autoApproveVerifiedReaders);
+    settings.markModified('comments');
+    await settings.save();
+  }
+
+  res.json({
+    success: true,
+    data: {
+      autoApproveVerifiedReaders: Boolean(settings.comments?.autoApproveVerifiedReaders),
+    },
   });
 });

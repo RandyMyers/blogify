@@ -54,6 +54,15 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  isBanned: {
+    type: Boolean,
+    default: false,
+    index: true,
+  },
+  bannedAt: {
+    type: Date,
+    default: null,
+  },
   refreshToken: {
     type: String,
     default: null

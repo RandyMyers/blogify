@@ -21,7 +21,7 @@ function sanitizeUser(user) {
  */
 exports.getUsers = asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim();
-  const query = {};
+  const query = { role: { $in: ['admin', 'advertiser', 'affiliate'] } };
 
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

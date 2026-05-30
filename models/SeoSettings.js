@@ -27,6 +27,9 @@ const seoSettingsSchema = new mongoose.Schema(
     searchConsole: {
       autoSubmitSitemap: { type: Boolean, default: false },
     },
+    comments: {
+      autoApproveVerifiedReaders: { type: Boolean, default: false },
+    },
   },
   { timestamps: true }
 );
