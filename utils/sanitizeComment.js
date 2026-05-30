@@ -107,6 +107,7 @@ function toPublicComment(doc) {
     _id: c._id,
     articleId: c.articleId,
     authorName: c.authorName,
+    isRegistered: Boolean(c.userId),
     body: formatCommentBodyForDisplay(c.body),
     language: c.language,
     createdAt: c.createdAt,

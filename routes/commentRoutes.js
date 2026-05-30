@@ -14,7 +14,7 @@ const {
   getArticleCommentCounts,
   getAdminCommentUrls,
 } = require('../controllers/commentController');
-const { protect, isAdmin } = require('../middleware/auth');
+const { protect, isAdmin, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -41,6 +41,6 @@ router.patch('/admin/:id', protect, isAdmin, updateAdminComment);
 router.delete('/admin/:id', protect, isAdmin, deleteAdminComment);
 
 router.get('/article/:articleId', getArticleComments);
-router.post('/article/:articleId', commentPostLimiter, createComment);
+router.post('/article/:articleId', commentPostLimiter, protect, authorize('reader'), createComment);
 
 module.exports = router;

@@ -6,7 +6,6 @@ const {
   sanitizeCommentBody,
   sanitizeAuthorName,
   sanitizeEmail,
-  isValidEmail,
   hashIp,
   getClientIp,
   toPublicComment,
@@ -110,29 +109,26 @@ exports.getArticleComments = asyncHandler(async (req, res) => {
 exports.createComment = asyncHandler(async (req, res) => {
   const { articleId } = req.params;
 
-  if (req.body.website_url_hidden) {
-    return res.status(201).json({
-      success: true,
-      message: 'Thank you — your comment is awaiting moderation.',
+  if (!req.user || req.user.role !== 'reader') {
+    return res.status(401).json({
+      success: false,
+      message: 'Please sign in to post a comment',
     });
   }
 
-  const authorName = sanitizeAuthorName(req.body.authorName);
-  const authorEmail = sanitizeEmail(req.body.authorEmail);
   const body = sanitizeCommentBody(req.body.body);
   const language = (req.body.language || 'en').toLowerCase();
   const parentId = req.body.parentId || null;
 
-  if (!authorName || !authorEmail || !body) {
+  if (!body) {
     return res.status(400).json({
       success: false,
-      message: 'Name, email, and comment are required',
+      message: 'Comment text is required',
     });
   }
 
-  if (!isValidEmail(authorEmail)) {
-    return res.status(400).json({ success: false, message: 'Invalid email address' });
-  }
+  const authorName = sanitizeAuthorName(req.user.username);
+  const authorEmail = sanitizeEmail(req.user.email);
 
   const article = await Article.findOne({
     _id: articleId,
@@ -162,6 +158,7 @@ exports.createComment = asyncHandler(async (req, res) => {
     articleId: article._id,
     articleSlug: resolveArticleSlug(article, language),
     parentId: parentId || null,
+    userId: req.user._id,
     authorName,
     authorEmail,
     authorWebsite: '',

@@ -23,6 +23,12 @@ const commentSchema = new mongoose.Schema(
       ref: 'Comment',
       default: null,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     authorName: {
       type: String,
       required: [true, 'Name is required'],

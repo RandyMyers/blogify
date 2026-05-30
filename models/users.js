@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'advertiser', 'affiliate'],
+    enum: ['admin', 'advertiser', 'affiliate', 'reader'],
     default: 'affiliate'
   },
   merchantId: {

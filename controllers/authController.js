@@ -100,5 +100,4 @@ exports.getMe = asyncHandler(async (req, res) => {
   });
 });
 
-
-
+exports.generateToken = generateToken;
