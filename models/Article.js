@@ -83,6 +83,12 @@ const articleSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Article image is required']
   },
+  imageAlt: {
+    type: String,
+    trim: true,
+    maxlength: [300, 'Image alt text cannot exceed 300 characters'],
+    default: ''
+  },
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
@@ -111,6 +117,11 @@ const articleSchema = new mongoose.Schema({
     index: true
   },
   views: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  commentCount: {
     type: Number,
     default: 0,
     min: 0

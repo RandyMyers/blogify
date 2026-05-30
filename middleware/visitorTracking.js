@@ -257,7 +257,7 @@ const getLocationFromIP = async (ip) => {
  */
 const trackVisitor = async (req, res, next) => {
   // Skip tracking for certain paths
-  const skipPaths = ['/api/health', '/api/metrics', '/favicon.ico', '/robots.txt'];
+  const skipPaths = ['/api/health', '/api/metrics', '/api/comments', '/favicon.ico', '/robots.txt'];
   if (skipPaths.some(path => req.path.startsWith(path))) {
     return next();
   }

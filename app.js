@@ -320,6 +320,7 @@ app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/authors', require('./routes/authorRoutes'));
 app.use('/api/newsletter', require('./routes/newsletterRoutes'));
 app.use('/api/contact', require('./routes/contactRoutes'));
+app.use('/api/comments', require('./routes/commentRoutes'));
 app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/ads', require('./routes/adRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));

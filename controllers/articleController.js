@@ -266,6 +266,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
       imageUrl: article.imageUrl,
+    imageAlt: article.imageAlt || '',
       category: categoryData,
       author: authorData,
       tags: article.tags,
@@ -385,6 +386,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
       imageUrl: article.imageUrl,
+    imageAlt: article.imageAlt || '',
       category: categoryData,
       author: authorData,
       tags: article.tags,
@@ -639,6 +641,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     content,
     // Shared fields
     imageUrl,
+    imageAlt,
     category,
     author,
     tags,
@@ -690,6 +693,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     content: normalizedLegacyContent,
     // Shared fields
     imageUrl,
+    imageAlt: imageAlt || '',
     category,
     author,
     tags: tags || [],
@@ -747,6 +751,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     content,
     // Shared fields
     imageUrl,
+    imageAlt,
     category,
     author,
     tags,
@@ -795,6 +800,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (excerpt) article.excerpt = excerpt;
   if (content) article.content = normalizeContentParagraphs(content);
   if (imageUrl) article.imageUrl = imageUrl;
+  if (imageAlt !== undefined) article.imageAlt = imageAlt || '';
   if (category) {
     const categoryDoc = await Category.findOne({
       _id: category,
