@@ -93,11 +93,22 @@ function extractFaqCandidates(html) {
   return faqs;
 }
 
-function detectHowToHint(html) {
-  if (!html) return false;
-  const howToHeading = /<h[23][^>]*>[\s\S]*?how to[\s\S]*?<\/h[23]>/i.test(html);
-  const steps = html.match(/<ol[^>]*>[\s\S]*?<li/gi) || [];
-  return howToHeading && steps.length >= 3;
+function extractHowToFromHtml(html) {
+  if (!html) return null;
+  const headingRe = /<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi;
+  let match;
+  while ((match = headingRe.exec(html)) !== null) {
+    const headingText = stripHtml(match[2]).trim();
+    if (!/how to/i.test(headingText)) continue;
+    const after = html.slice(match.index + match[0].length);
+    const olMatch = after.match(/<ol[^>]*>([\s\S]*?)<\/ol>/i);
+    if (!olMatch) continue;
+    const steps = (olMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/gi) || [])
+      .map((li) => stripHtml(li))
+      .filter(Boolean);
+    if (steps.length >= 3) return { name: headingText, steps };
+  }
+  return null;
 }
 
 function suggestInternalLinks({ focusKeyword, tags, siteArticles, currentSlug, linkedSlugs, categoryName, limit = 5 }) {
@@ -503,7 +514,7 @@ function analyzeContentSeo(input) {
   }
 
   const faqCandidates = extractFaqCandidates(html);
-  const howToHint = detectHowToHint(html);
+  const howTo = extractHowToFromHtml(html);
   if (faqCandidates.length >= 2) {
     checks.push(
       makeCheck(
@@ -524,13 +535,13 @@ function analyzeContentSeo(input) {
         'schema'
       )
     );
-  } else if (howToHint) {
+  } else if (howTo) {
     checks.push(
       makeCheck(
         'faq_schema',
         'FAQ schema opportunity',
-        'warn',
-        'How-to steps detected — consider adding FAQ Q&A sections or HowTo schema.',
+        'good',
+        `HowTo detected (${howTo.steps.length} steps) — JSON-LD will be output on publish.`,
         'schema'
       )
     );
@@ -574,7 +585,7 @@ function analyzeContentSeo(input) {
     gradeColor: color,
     wordCount,
     readability: flesch != null ? { score: flesch, label: fleschLabel(flesch) } : null,
-    faq: { candidates: faqCandidates, howToHint },
+    faq: { candidates: faqCandidates, howTo },
     suggestions: { internalLinks: internalLinkSuggestions },
     checks,
     serp: {

@@ -78,6 +78,13 @@ const articleSchema = new mongoose.Schema({
     lowercase: true,
     index: true
   },
+  // Previously used slugs (baseSlug / per-language) kept so old URLs can 301-redirect
+  // to the current canonical URL after a slug is renamed.
+  previousSlugs: {
+    type: [String],
+    default: [],
+    index: true
+  },
   excerpt: {
     type: String,
     maxlength: [500, 'Excerpt cannot exceed 500 characters']
@@ -204,6 +211,10 @@ articleSchema.index({ 'translations.pt.slug': 1 });
 // Legacy slug index (for backward compatibility)
 articleSchema.index({ slug: 1 });
 articleSchema.index({ tenantId: 1, slug: 1 });
+
+// Old-slug redirect lookup
+articleSchema.index({ previousSlugs: 1 });
+articleSchema.index({ tenantId: 1, previousSlugs: 1 });
 
 // Region and global access indexes
 articleSchema.index({ isGlobal: 1, regionRestrictions: 1 });

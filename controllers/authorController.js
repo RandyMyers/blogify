@@ -21,6 +21,10 @@ const formatAuthorPublic = (author, language) => {
     articleCount: author.articleCount,
     totalViews: author.totalViews,
     language,
+    seo: {
+      metaTitle: author.metaTitle || '',
+      metaDescription: author.metaDescription || '',
+    },
   };
 };
 
@@ -39,10 +43,14 @@ const applyAuthorPayload = (author, body) => {
     defaultLanguage,
     translations,
     slug,
+    metaTitle,
+    metaDescription,
   } = body;
 
   if (name) author.name = name;
   if (bio !== undefined) author.bio = bio;
+  if (metaTitle !== undefined) author.metaTitle = metaTitle;
+  if (metaDescription !== undefined) author.metaDescription = metaDescription;
   if (avatar !== undefined) author.avatar = avatar;
   if (email !== undefined) author.email = email;
   if (baseSlug) author.baseSlug = baseSlug;

@@ -37,6 +37,10 @@ const seoSettingsSchema = new mongoose.Schema(
       requireMetaOnPublish: { type: Boolean, default: true },
       metaTitleTemplate: { type: String, default: '{{title}} | {{siteName}}', trim: true },
       metaDescriptionTemplate: { type: String, default: '{{excerpt}}', trim: true },
+      categoryMetaTitleTemplate: { type: String, default: '{{name}} Articles | {{siteName}}', trim: true },
+      categoryMetaDescriptionTemplate: { type: String, default: '{{description}}', trim: true },
+      authorMetaTitleTemplate: { type: String, default: '{{name}} | {{siteName}}', trim: true },
+      authorMetaDescriptionTemplate: { type: String, default: '{{bio}}', trim: true },
     },
   },
   { timestamps: true }

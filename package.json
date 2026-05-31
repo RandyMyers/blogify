@@ -18,6 +18,7 @@
     "fix:category-lang": "node scripts/fixCategoryDefaultLanguage.js --fix",
     "setup:bloomwik": "node scripts/setupBloomwikTenant.js",
     "seed:bloomwik-seo": "node scripts/seedBloomwikSeo.js",
+    "backfill:article-seo": "node scripts/backfillArticleSeo.js",
     "verify:golive": "node scripts/verifyGoLive.js",
     "check:ids": "node scripts/checkMongoIds.js",
     "test": "NODE_ENV=test jest --coverage",

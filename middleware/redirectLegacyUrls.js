@@ -29,6 +29,7 @@ const redirectLegacyUrls = asyncHandler(async (req, res, next) => {
         $or: [
           { slug: slug },
           { baseSlug: slug },
+          { previousSlugs: slug },
           { 'translations.en.slug': slug },
           { 'translations.fr.slug': slug },
           { 'translations.es.slug': slug },
@@ -63,8 +64,11 @@ const redirectLegacyUrls = asyncHandler(async (req, res, next) => {
           const queryString = new URLSearchParams(req.query).toString();
           redirectUrl += `?${queryString}`;
         }
-        
-        return res.redirect(301, redirectUrl);
+
+        // Avoid redirecting a URL to itself (would loop for already-canonical slugs)
+        if (redirectUrl.split('?')[0] !== path) {
+          return res.redirect(301, redirectUrl);
+        }
       }
     } catch (error) {
       // If error, continue to next middleware (don't break the app)

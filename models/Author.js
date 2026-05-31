@@ -72,6 +72,8 @@ const authorSchema = new mongoose.Schema({
     lowercase: true,
     match: [/\S+@\S+\.\S+/, 'Please use a valid email address']
   },
+  metaTitle: { type: String, maxlength: 60, default: '' },
+  metaDescription: { type: String, maxlength: 160, default: '' },
   socialLinks: {
     twitter: { type: String, default: null },
     linkedin: { type: String, default: null },

@@ -34,6 +34,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
     { [`translations.${language}.slug`]: slug },
     { baseSlug: slug },
     { slug },
+    { previousSlugs: slug },
   ];
 
   if (isObjectIdString(slug)) {

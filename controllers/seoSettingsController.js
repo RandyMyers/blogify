@@ -31,6 +31,10 @@ const DEFAULTS = {
     requireMetaOnPublish: true,
     metaTitleTemplate: '{{title}} | {{siteName}}',
     metaDescriptionTemplate: '{{excerpt}}',
+    categoryMetaTitleTemplate: '{{name}} Articles | {{siteName}}',
+    categoryMetaDescriptionTemplate: '{{description}}',
+    authorMetaTitleTemplate: '{{name}} | {{siteName}}',
+    authorMetaDescriptionTemplate: '{{bio}}',
   },
 };
 

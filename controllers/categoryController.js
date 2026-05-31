@@ -32,6 +32,10 @@ exports.getAllCategories = asyncHandler(async (req, res) => {
       slug: activeTranslation.slug,
       name: activeTranslation.name,
       description: activeTranslation.description,
+      seo: {
+        metaTitle: activeTranslation.metaTitle || '',
+        metaDescription: activeTranslation.metaDescription || '',
+      },
       color: category.color,
       imageUrl: category.imageUrl,
       isPopular: category.isPopular,
@@ -80,6 +84,10 @@ exports.getPopularCategories = asyncHandler(async (req, res) => {
       slug: activeTranslation.slug,
       name: activeTranslation.name,
       description: activeTranslation.description,
+      seo: {
+        metaTitle: activeTranslation.metaTitle || '',
+        metaDescription: activeTranslation.metaDescription || '',
+      },
       color: category.color,
       imageUrl: category.imageUrl,
       isPopular: category.isPopular,
@@ -190,6 +198,10 @@ exports.getCategoryBySlug = asyncHandler(async (req, res) => {
       slug: activeTranslation.slug,
       name: activeTranslation.name,
       description: activeTranslation.description,
+      seo: {
+        metaTitle: activeTranslation.metaTitle || '',
+        metaDescription: activeTranslation.metaDescription || '',
+      },
       color: category.color,
       imageUrl: category.imageUrl,
       isPopular: category.isPopular,

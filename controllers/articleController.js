@@ -427,7 +427,8 @@ exports.trackView = asyncHandler(async (req, res) => {
     $or: [
       { baseSlug: slug },
       { [`translations.${language}.slug`]: slug },
-      { slug: slug } // legacy support
+      { slug: slug }, // legacy support
+      { previousSlugs: slug } // renamed slug support
     ]
   });
 
@@ -741,6 +742,22 @@ exports.createArticle = asyncHandler(async (req, res) => {
  * @route   PUT /api/articles/:id
  * @access  Private/Admin
  */
+const ARTICLE_SLUG_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
+
+// Gather every slug that currently resolves to an article (baseSlug, legacy slug,
+// and each per-language translation slug). Used to detect renamed slugs.
+function collectArticleSlugs(article) {
+  const slugs = new Set();
+  if (article.baseSlug) slugs.add(article.baseSlug);
+  if (article.slug) slugs.add(article.slug);
+  const translations = article.translations || {};
+  ARTICLE_SLUG_LANGUAGES.forEach((lang) => {
+    const t = translations[lang];
+    if (t && t.slug) slugs.add(t.slug);
+  });
+  return slugs;
+}
+
 exports.updateArticle = asyncHandler(async (req, res) => {
   const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
   const article = await Article.findOne(filter);
@@ -751,6 +768,10 @@ exports.updateArticle = asyncHandler(async (req, res) => {
       message: 'Article not found'
     });
   }
+
+  // Snapshot current slugs before applying updates so renamed slugs can keep
+  // redirecting (301) to the new canonical URL.
+  const previousSlugSnapshot = collectArticleSlugs(article);
   
   // Update fields
   const {
@@ -847,6 +868,17 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (typeof featured === 'boolean') article.featured = featured;
   if (typeof trending === 'boolean') article.trending = trending;
   if (seo) article.seo = { ...article.seo, ...seo };
+
+  // Preserve any slugs that were just changed so old URLs keep working / 301-redirect.
+  const currentSlugs = collectArticleSlugs(article);
+  const retiredSlugs = [...previousSlugSnapshot].filter((s) => s && !currentSlugs.has(s));
+  const existingPrevious = Array.isArray(article.previousSlugs) ? article.previousSlugs : [];
+  if (retiredSlugs.length > 0 || existingPrevious.length > 0) {
+    // Drop any historical slug that is live again to avoid self-redirect loops.
+    const merged = new Set([...existingPrevious, ...retiredSlugs].filter((s) => s && !currentSlugs.has(s)));
+    article.previousSlugs = [...merged];
+    article.markModified('previousSlugs');
+  }
 
   const seoSettings = await getOrCreateSeoSettings(req.tenantId);
   applySeoScoreToDocument(article, seoSettings.siteUrl);

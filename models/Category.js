@@ -5,7 +5,9 @@ const generateSlug = require('../utils/generateSlug');
 const categoryTranslationSchema = new mongoose.Schema({
   slug: { type: String, lowercase: true, index: true },
   name: { type: String, maxlength: 50 },
-  description: { type: String, maxlength: 500 }
+  description: { type: String, maxlength: 500 },
+  metaTitle: { type: String, maxlength: 60, default: '' },
+  metaDescription: { type: String, maxlength: 160, default: '' },
 }, { _id: false });
 
 const categorySchema = new mongoose.Schema({
