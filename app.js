@@ -1,6 +1,8 @@
 const express = require('express');
 const morgan = require('morgan');
 const mongoose = require('mongoose');
+// Fail fast in serverless — never queue DB ops before connectToDatabase() runs
+mongoose.set('bufferCommands', false);
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
@@ -90,11 +92,9 @@ app.set('trust proxy', true);
 
 // Add request ID middleware early in the chain
 app.use(requestId);
-app.use('/api', detectTenant);
 
 // --- CORS (Vercel-safe) ---
-// On Vercel/serverless, you must respond to OPTIONS preflights and include CORS headers on every path,
-// including error responses. We set headers early so they apply even if later middleware throws.
+// Must run before detectTenant / DB — OPTIONS preflights must not touch MongoDB.
 const isDevelopment = env.NODE_ENV !== 'production';
 
 const isAllowedOriginForRequest = (origin) =>
@@ -109,16 +109,13 @@ app.use((req, res, next) => {
   if (isAllowedOriginForRequest(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    // Only set credentials if you actually use cookies; keep it true for now because server uses cookieParser.
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
-  // Always set these so preflight can succeed.
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Tenant-Slug, X-Tenant-Id');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Short-circuit preflight
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
@@ -183,7 +180,7 @@ async function connectToDatabase() {
 
 if (isServerless) {
   app.use(async (req, res, next) => {
-    if (req.method === 'OPTIONS' || req.path === '/health') {
+    if (req.path === '/health') {
       return next();
     }
     try {
@@ -203,6 +200,9 @@ if (isServerless) {
     }
   });
 }
+
+// Tenant resolution needs MongoDB — register after connect middleware
+app.use('/api', detectTenant);
 
 // Handle connection events
 mongoose.connection.on('error', (err) => {

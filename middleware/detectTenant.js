@@ -50,6 +50,10 @@ const resolveTenant = async (req) => {
 };
 
 const detectTenant = async (req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   try {
     const tenant = await resolveTenant(req);
 
