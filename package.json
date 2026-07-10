@@ -20,6 +20,7 @@
     "setup:tenants": "node scripts/ensureMultiTenantSetup.js",
     "setup:hostinger": "node scripts/setupHostingerTenant.js",
     "split:articles-by-tenant": "node scripts/splitArticlesByTenant.js",
+    "assign:articles-by-tenant": "node scripts/assignArticlesByTenant.js",
     "backfill:tenant-scope": "node scripts/backfillTenantScopedRecords.js",
     "seed:bloomwik-seo": "node scripts/seedBloomwikSeo.js",
     "backfill:article-seo": "node scripts/backfillArticleSeo.js",

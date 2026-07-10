@@ -135,6 +135,7 @@ async function main() {
   }
 
   const fromSlug = parseFromSlug();
+  const migrateContent = process.argv.includes('--migrate');
   await mongoose.connect(process.env.MONGO_URL);
   console.log('Connected to MongoDB\n');
 
@@ -142,7 +143,9 @@ async function main() {
   await seedHostingerSeo(hostinger._id);
 
   const source = await Tenant.findOne({ slug: fromSlug, isActive: true });
-  if (!source) {
+  if (!migrateContent) {
+    console.log('\nSkipping content migration (pass --migrate to copy from another tenant).');
+  } else if (!source) {
     console.log(`\nNo source tenant "${fromSlug}" — skipping content migration.`);
   } else if (String(source._id) === String(hostinger._id)) {
     console.log('\nSource and target tenant are the same — skipping content migration.');

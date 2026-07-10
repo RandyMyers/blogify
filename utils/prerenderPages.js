@@ -32,6 +32,24 @@ function buildLangToRegionMap(regions) {
   return langToRegion;
 }
 
+function buildStaticHreflang(siteUrl, regions, pagePath) {
+  const langToRegion = buildLangToRegionMap(regions);
+  const links = Object.entries(langToRegion).map(([lang, region]) => ({
+    lang,
+    href: absUrl(siteUrl, pathForRegion(region.code, pagePath)),
+  }));
+  links.push({ lang: 'x-default', href: absUrl(siteUrl, pagePath) });
+  return links;
+}
+
+function articleAvailableInRegion(article, regionCode) {
+  const code = (regionCode || 'US').toUpperCase();
+  if (article.isGlobal) return true;
+  const restrictions = article.regionRestrictions || [];
+  if (!restrictions.length) return true;
+  return restrictions.map((r) => String(r).toUpperCase()).includes(code);
+}
+
 function buildHreflangForEntity(siteUrl, entity, pathBuilder) {
   const langs = new Set(Object.keys(entity.translations || {}));
   if (entity.defaultLanguage) langs.add(entity.defaultLanguage);
@@ -121,20 +139,19 @@ async function buildPrerenderPages(tenantId) {
 
   const langToRegion = buildLangToRegionMap(regions);
   const pages = [];
+  const seenPaths = new Set();
+
+  const pushPage = (page) => {
+    if (!page?.path || seenPaths.has(page.path)) return;
+    seenPaths.add(page.path);
+    pages.push(page);
+  };
 
   STATIC_PAGES.forEach((staticPage) => {
-    Object.entries(langToRegion).forEach(([lang, region]) => {
+    regions.forEach((region) => {
+      const lang = (region.defaultLanguage || 'en').toLowerCase();
       const pagePath = pathForRegion(region.code, staticPage.path);
-      const hreflang = Object.entries(langToRegion).map(([l, r]) => ({
-        lang: l,
-        href: absUrl(siteUrl, pathForRegion(r.code, staticPage.path)),
-      }));
-      hreflang.push({
-        lang: 'x-default',
-        href: absUrl(siteUrl, staticPage.path),
-      });
-
-      pages.push({
+      pushPage({
         path: pagePath,
         language: lang,
         title: staticPage.title,
@@ -144,20 +161,26 @@ async function buildPrerenderPages(tenantId) {
         canonicalUrl: absUrl(siteUrl, pagePath),
         robots: 'index, follow',
         ogType: 'website',
-        hreflang,
+        hreflang: buildStaticHreflang(siteUrl, regions, staticPage.path),
       });
     });
   });
 
   articles.forEach((article) => {
-    const available = article.getAvailableLanguages?.() || Object.keys(article.translations || {});
-    available.forEach((lang) => {
-      const translation = article.getTranslation(lang);
+    regions.forEach((region) => {
+      if (!articleAvailableInRegion(article, region.code)) return;
+
+      const lang = (region.defaultLanguage || 'en').toLowerCase();
+      const translation =
+        typeof article.getTranslation === 'function'
+          ? article.getTranslation(lang)
+          : article.translations?.[lang];
       if (!translation?.title) return;
 
       const slug = translation.slug || article.baseSlug;
-      const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
-      const pagePath = pathForRegion(regionCode, `/article/${slug}`);
+      if (!slug) return;
+
+      const pagePath = pathForRegion(region.code, `/article/${slug}`);
       const seo = buildTranslationSeo(translation);
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
@@ -170,7 +193,7 @@ async function buildPrerenderPages(tenantId) {
         ? translation.content.slice(0, 12)
         : [];
 
-      pages.push({
+      pushPage({
         path: pagePath,
         language: lang,
         title: translation.title,
@@ -207,14 +230,8 @@ async function buildPrerenderPages(tenantId) {
   });
 
   categories.forEach((category) => {
-    const uniqueLangs = [
-      ...new Set([
-        ...(Object.keys(category.translations || {})),
-        category.defaultLanguage || 'en',
-      ]),
-    ];
-
-    uniqueLangs.forEach((lang) => {
+    regions.forEach((region) => {
+      const lang = (region.defaultLanguage || 'en').toLowerCase();
       const translation =
         typeof category.getTranslation === 'function'
           ? category.getTranslation(lang)
@@ -222,10 +239,11 @@ async function buildPrerenderPages(tenantId) {
       if (!translation?.name && !category.name) return;
 
       const slug = getSlugForLang(category, lang);
-      const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
-      const pagePath = pathForRegion(regionCode, `/category/${slug}`);
+      if (!slug) return;
 
-      pages.push({
+      const pagePath = pathForRegion(region.code, `/category/${slug}`);
+
+      pushPage({
         path: pagePath,
         language: lang,
         title: translation?.name || category.name,
@@ -247,9 +265,10 @@ async function buildPrerenderPages(tenantId) {
     const slug = author.slug || author.baseSlug;
     if (!slug || !author.name) return;
 
-    Object.entries(langToRegion).forEach(([lang, region]) => {
+    regions.forEach((region) => {
+      const lang = (region.defaultLanguage || 'en').toLowerCase();
       const pagePath = pathForRegion(region.code, `/author/${slug}`);
-      pages.push({
+      pushPage({
         path: pagePath,
         language: lang,
         title: author.name,
