@@ -11,6 +11,7 @@ const DEFAULT_API = 'https://blogify-sooty-one.vercel.app';
 const ORIGINS_TO_TEST = [
   'https://bloomwik.com',
   'https://www.bloomwik.com',
+  'https://darksalmon-chinchilla-651339.hostingersite.com',
 ];
 
 function parseArgs() {

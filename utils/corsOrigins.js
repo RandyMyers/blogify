@@ -2,7 +2,7 @@
  * Shared CORS origin checks for API requests from the public site, admin, and hosting platforms.
  */
 
-const PLATFORM_SUFFIXES = ['.netlify.app', '.vercel.app'];
+const PLATFORM_SUFFIXES = ['.netlify.app', '.vercel.app', '.hostingersite.com'];
 
 /** Production client domains (Hostinger). */
 const BLOOMWIK_HOSTS = ['bloomwik.com', 'www.bloomwik.com'];
@@ -64,6 +64,7 @@ function buildAllowedOrigins({ clientUrl, adminUrl, isDevelopment = false } = {}
       'https://www.bloomwik.com',
       'https://fabulous-arithmetic-400162.netlify.app',
       'https://eloquent-taffy-866b1b.netlify.app',
+      'https://darksalmon-chinchilla-651339.hostingersite.com',
       ...(isDevelopment ? ['http://localhost:3000', 'http://localhost:3001'] : []),
     ].filter(Boolean)
   );

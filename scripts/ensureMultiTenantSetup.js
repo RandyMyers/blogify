@@ -18,6 +18,7 @@ else dotenv.config();
 
 const BLOOMWIK_DOMAINS = ['bloomwik.com', 'www.bloomwik.com'];
 const PREVIEW_DOMAINS = ['fabulous-arithmetic-400162.netlify.app'];
+const HOSTINGER_DOMAINS = ['darksalmon-chinchilla-651339.hostingersite.com'];
 
 async function upsertTenant({ slug, name, domains, isDefault }) {
   let tenant = await Tenant.findOne({ slug });
@@ -78,8 +79,18 @@ async function main() {
     isDefault: false,
   });
 
+  const hostinger = await upsertTenant({
+    slug: 'hostinger',
+    name: 'Hostinger Staging',
+    domains: HOSTINGER_DOMAINS,
+    isDefault: false,
+  });
+
   preview.domains = PREVIEW_DOMAINS;
   await preview.save();
+
+  hostinger.domains = HOSTINGER_DOMAINS;
+  await hostinger.save();
 
   const legacyDefault = await Tenant.findOne({ slug: 'default' });
   if (legacyDefault && String(legacyDefault._id) !== String(bloomwik._id)) {
@@ -103,7 +114,10 @@ async function main() {
     }
 
     legacyDefault.domains = (legacyDefault.domains || []).filter(
-      (d) => !PREVIEW_DOMAINS.includes(d.toLowerCase()) && !BLOOMWIK_DOMAINS.includes(d.toLowerCase())
+      (d) =>
+        !PREVIEW_DOMAINS.includes(d.toLowerCase()) &&
+        !BLOOMWIK_DOMAINS.includes(d.toLowerCase()) &&
+        !HOSTINGER_DOMAINS.includes(d.toLowerCase())
     );
     legacyDefault.isDefault = false;
     await legacyDefault.save();
@@ -113,9 +127,12 @@ async function main() {
   console.log('\nTenant slugs:');
   console.log(`  Production (bloomwik.com): ${bloomwik.slug}`);
   console.log(`  Netlify preview: ${preview.slug}`);
+  console.log(`  Hostinger staging: ${hostinger.slug}`);
   console.log('\nSet client env per deployment:');
-  console.log('  Hostinger:  REACT_APP_TENANT_SLUG=bloomwik');
-  console.log('  Netlify:    REACT_APP_TENANT_SLUG=preview');
+  console.log('  bloomwik.com:     REACT_APP_TENANT_SLUG=bloomwik');
+  console.log('  Netlify preview:  REACT_APP_TENANT_SLUG=preview');
+  console.log('  Hostinger staging: REACT_APP_TENANT_SLUG=hostinger');
+  console.log('  Hostinger build:  npm run build:hostinger');
   console.log('Admin: select the matching site in the top-bar tenant switcher.\n');
 
   await mongoose.connection.close();
