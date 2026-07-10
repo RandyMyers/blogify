@@ -9,14 +9,15 @@ const Ad = require('../models/Ad');
  * @param {Number} limit - Maximum number of ads to return (default: 5)
  * @returns {Promise<Array>} Array of ad documents
  */
-async function selectAds(placement, region = 'US', language = 'en', categoryId = null, limit = 5) {
+async function selectAds(placement, region = 'US', language = 'en', categoryId = null, limit = 5, tenantId = null) {
   const now = new Date();
   
   // Build base query for active ads
   const query = {
     placement,
     status: 'active',
-    isActive: true
+    isActive: true,
+    ...(tenantId ? { tenantId } : {}),
   };
   
   // Build $and array for complex conditions

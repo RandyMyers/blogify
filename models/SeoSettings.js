@@ -30,11 +30,17 @@ const seoSettingsSchema = new mongoose.Schema(
     comments: {
       autoApproveVerifiedReaders: { type: Boolean, default: false },
     },
+    hreflang: {
+      enabled: { type: Boolean, default: true },
+      xDefaultLanguage: { type: String, default: 'en', trim: true },
+      includeRegionalVariants: { type: Boolean, default: true },
+    },
     contentSeo: {
       minPublishScore: { type: Number, default: 0, min: 0, max: 100 },
       warnPublishScore: { type: Number, default: 60, min: 0, max: 100 },
       requireFocusKeyword: { type: Boolean, default: false },
       requireMetaOnPublish: { type: Boolean, default: true },
+      requireCanonicalOnPublish: { type: Boolean, default: true },
       metaTitleTemplate: { type: String, default: '{{title}} | {{siteName}}', trim: true },
       metaDescriptionTemplate: { type: String, default: '{{excerpt}}', trim: true },
       categoryMetaTitleTemplate: { type: String, default: '{{name}} Articles | {{siteName}}', trim: true },

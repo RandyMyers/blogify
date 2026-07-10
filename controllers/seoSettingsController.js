@@ -29,12 +29,18 @@ const DEFAULTS = {
     warnPublishScore: 60,
     requireFocusKeyword: false,
     requireMetaOnPublish: true,
+    requireCanonicalOnPublish: true,
     metaTitleTemplate: '{{title}} | {{siteName}}',
     metaDescriptionTemplate: '{{excerpt}}',
     categoryMetaTitleTemplate: '{{name}} Articles | {{siteName}}',
     categoryMetaDescriptionTemplate: '{{description}}',
     authorMetaTitleTemplate: '{{name}} | {{siteName}}',
     authorMetaDescriptionTemplate: '{{bio}}',
+  },
+  hreflang: {
+    enabled: true,
+    xDefaultLanguage: 'en',
+    includeRegionalVariants: true,
   },
 };
 
@@ -66,9 +72,30 @@ function toPublicSettings(doc) {
     searchConsole: { ...DEFAULTS.searchConsole, ...obj.searchConsole },
     comments: { ...DEFAULTS.comments, ...obj.comments },
     contentSeo: { ...DEFAULTS.contentSeo, ...obj.contentSeo },
+    hreflang: { ...DEFAULTS.hreflang, ...(obj.hreflang || {}) },
     updatedAt: obj.updatedAt,
   };
 }
+
+/**
+ * @route GET /api/seo/public
+ * Public SEO settings for client head tags (no auth).
+ */
+exports.getPublicSeoSettings = asyncHandler(async (req, res) => {
+  const doc = await getOrCreateSettings(req.tenantId);
+  const settings = toPublicSettings(doc);
+  res.json({
+    success: true,
+    data: {
+      siteName: settings.siteName,
+      siteUrl: settings.siteUrl,
+      twitterHandle: settings.twitterHandle,
+      googleSiteVerification: settings.googleSiteVerification,
+      bingSiteVerification: settings.bingSiteVerification,
+      hreflang: settings.hreflang,
+    },
+  });
+});
 
 /**
  * @route GET /api/admin/seo-settings
@@ -116,12 +143,16 @@ exports.updateSeoSettings = asyncHandler(async (req, res) => {
   if (body.contentSeo && typeof body.contentSeo === 'object') {
     Object.assign(doc.contentSeo, body.contentSeo);
   }
+  if (body.hreflang && typeof body.hreflang === 'object') {
+    Object.assign(doc.hreflang, body.hreflang);
+  }
 
   doc.markModified('sitemap');
   doc.markModified('indexNow');
   doc.markModified('searchConsole');
   doc.markModified('comments');
   doc.markModified('contentSeo');
+  doc.markModified('hreflang');
   await doc.save();
 
   res.json({

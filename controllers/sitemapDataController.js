@@ -52,7 +52,7 @@ const getCategoriesForSitemap = async (req, res) => {
       return res.json({ categories: [], tenant: req.tenantSlug || null });
     }
 
-    const categories = await Category.find(tenantFilter(req))
+    const categories = await Category.find({})
       .select('baseSlug defaultLanguage translations updatedAt')
       .sort({ updatedAt: -1 })
       .limit(50000);

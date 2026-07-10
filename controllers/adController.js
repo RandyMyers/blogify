@@ -2,6 +2,7 @@ const Ad = require('../models/Ad');
 const AdEvent = require('../models/AdEvent');
 const mongoose = require('mongoose');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { scopedFilter } = require('../utils/tenantScope');
 const { selectAds, selectRandomAd } = require('../utils/adSelector');
 
 /**
@@ -10,6 +11,13 @@ const { selectAds, selectRandomAd } = require('../utils/adSelector');
  * @access  Public
  */
 exports.getActiveAds = asyncHandler(async (req, res) => {
+  if (!req.tenantId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Tenant not resolved for this site',
+    });
+  }
+
   const { placement, region, language, category } = req.query;
   
   // Validate required parameters
@@ -27,7 +35,7 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   
   // Get ads
-  const ads = await selectAds(placement, targetRegion, targetLanguage, targetCategory, limit);
+  const ads = await selectAds(placement, targetRegion, targetLanguage, targetCategory, limit, req.tenantId);
   
   // Transform ads to include language-specific content
   const transformedAds = ads.map(ad => {
@@ -64,7 +72,7 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
  * @access  Public
  */
 exports.getAdById = asyncHandler(async (req, res) => {
-  const ad = await Ad.findById(req.params.id)
+  const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) })
     .populate('targetCategories', 'name slug')
     .populate('createdBy', 'name email');
   
@@ -99,7 +107,7 @@ exports.getAllAds = asyncHandler(async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
   
   // Build query
-  const query = {};
+  const query = { ...scopedFilter(req) };
   
   if (status) {
     query.status = status;
@@ -144,7 +152,8 @@ exports.getAllAds = asyncHandler(async (req, res) => {
 exports.createAd = asyncHandler(async (req, res) => {
   const adData = {
     ...req.body,
-    createdBy: req.user._id
+    tenantId: req.tenantId,
+    createdBy: req.user._id,
   };
   
   const ad = await Ad.create(adData);
@@ -161,7 +170,7 @@ exports.createAd = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.updateAd = asyncHandler(async (req, res) => {
-  let ad = await Ad.findById(req.params.id);
+  let ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
   
   if (!ad) {
     return res.status(404).json({
@@ -192,7 +201,7 @@ exports.updateAd = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteAd = asyncHandler(async (req, res) => {
-  const ad = await Ad.findById(req.params.id);
+  const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
   
   if (!ad) {
     return res.status(404).json({
@@ -215,7 +224,7 @@ exports.deleteAd = asyncHandler(async (req, res) => {
  * @access  Public
  */
 exports.trackImpression = asyncHandler(async (req, res) => {
-  const ad = await Ad.findById(req.params.id);
+  const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
   
   if (!ad) {
     return res.status(404).json({
@@ -227,7 +236,7 @@ exports.trackImpression = asyncHandler(async (req, res) => {
   // Increment impressions
   ad.impressions = (ad.impressions || 0) + 1;
   await ad.save();
-  await AdEvent.create({ adId: ad._id, type: 'impression' });
+  await AdEvent.create({ adId: ad._id, type: 'impression', tenantId: req.tenantId });
   
   res.json({
     success: true,
@@ -241,7 +250,7 @@ exports.trackImpression = asyncHandler(async (req, res) => {
  * @access  Public
  */
 exports.trackClick = asyncHandler(async (req, res) => {
-  const ad = await Ad.findById(req.params.id);
+  const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
   
   if (!ad) {
     return res.status(404).json({
@@ -253,7 +262,7 @@ exports.trackClick = asyncHandler(async (req, res) => {
   // Increment clicks
   ad.clicks = (ad.clicks || 0) + 1;
   await ad.save();
-  await AdEvent.create({ adId: ad._id, type: 'click' });
+  await AdEvent.create({ adId: ad._id, type: 'click', tenantId: req.tenantId });
   
   res.json({
     success: true,
@@ -270,7 +279,7 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
   const { adId } = req.query;
   const days = Math.min(parseInt(req.query.days, 10) || 30, 90);
 
-  const adQuery = adId ? { _id: adId } : {};
+  const adQuery = { ...scopedFilter(req), ...(adId ? { _id: adId } : {}) };
   const ads = await Ad.find(adQuery);
 
   const totalImpressions = ads.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
@@ -294,7 +303,7 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
   start.setHours(0, 0, 0, 0);
   start.setDate(start.getDate() - (days - 1));
 
-  const eventMatch = { createdAt: { $gte: start } };
+  const eventMatch = { createdAt: { $gte: start }, ...scopedFilter(req) };
   if (adId) {
     eventMatch.adId = new mongoose.Types.ObjectId(adId);
   }

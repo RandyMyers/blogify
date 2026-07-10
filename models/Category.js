@@ -154,7 +154,6 @@ categorySchema.methods.updatePostCount = async function() {
   const count = await Article.countDocuments({
     category: this._id,
     published: true,
-    ...(this.tenantId ? { tenantId: this.tenantId } : {})
   });
   this.postCount = count;
   await this.save();

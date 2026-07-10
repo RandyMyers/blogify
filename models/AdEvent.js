@@ -2,6 +2,11 @@ const mongoose = require('mongoose');
 
 const adEventSchema = new mongoose.Schema(
   {
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Tenant',
+      index: true,
+    },
     adId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Ad',

@@ -114,7 +114,6 @@ exports.searchCategories = asyncHandler(async (req, res) => {
   
   // Search in translations
   const categories = await Category.find({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.name`]: { $regex: query.trim(), $options: 'i' } },
       { [`translations.${language}.description`]: { $regex: query.trim(), $options: 'i' } },
@@ -269,7 +268,6 @@ exports.globalSearch = asyncHandler(async (req, res) => {
   
   // Search categories
   const categories = await Category.find({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     $or: [
       { [`translations.${language}.name`]: { $regex: searchQuery, $options: 'i' } },
       { [`translations.${language}.description`]: { $regex: searchQuery, $options: 'i' } },

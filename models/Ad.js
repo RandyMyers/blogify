@@ -27,6 +27,11 @@ const adTranslationSchema = new mongoose.Schema({
 }, { _id: false });
 
 const adSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true,
+  },
   // Basic Information
   name: {
     type: String,
@@ -175,6 +180,7 @@ const adSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
+adSchema.index({ tenantId: 1, placement: 1, status: 1, isActive: 1 });
 adSchema.index({ placement: 1, status: 1, isActive: 1 });
 adSchema.index({ startDate: 1, endDate: 1 });
 adSchema.index({ targetRegions: 1, targetLanguages: 1 });

@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const visitorSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true,
+  },
   // IP and Location
   ipAddress: {
     type: String,
@@ -211,6 +216,10 @@ function botFilter(excludeBots = true) {
   return excludeBots ? { isBot: false } : {};
 }
 
+function tenantMatch(tenantId) {
+  return tenantId ? { tenantId } : {};
+}
+
 function dateRangeMatch(days) {
   const start = new Date();
   start.setDate(start.getDate() - Number(days || 30));
@@ -219,8 +228,8 @@ function dateRangeMatch(days) {
 }
 
 // Analytics overview for admin dashboard (coupondealz-style)
-visitorSchema.statics.getAnalyticsOverview = async function (days = 30) {
-  const periodMatch = { ...botFilter(), ...dateRangeMatch(days) };
+visitorSchema.statics.getAnalyticsOverview = async function (days = 30, tenantId = null) {
+  const periodMatch = { ...botFilter(), ...dateRangeMatch(days), ...tenantMatch(tenantId) };
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -263,7 +272,7 @@ visitorSchema.statics.getAnalyticsOverview = async function (days = 30) {
       },
     ]),
     this.aggregate([
-      { $match: { ...botFilter(), visitedAt: { $gte: since24h } } },
+      { $match: { ...botFilter(), ...tenantMatch(tenantId), visitedAt: { $gte: since24h } } },
       {
         $group: {
           _id: null,
@@ -274,11 +283,11 @@ visitorSchema.statics.getAnalyticsOverview = async function (days = 30) {
       { $project: { pageViews: 1, uniqueIPs: { $size: '$uniqueIPs' } } },
     ]),
     this.aggregate([
-      { $match: { ...botFilter(), visitedAt: { $gte: since7d } } },
+      { $match: { ...botFilter(), ...tenantMatch(tenantId), visitedAt: { $gte: since7d } } },
       { $group: { _id: null, pageViews: { $sum: 1 } } },
     ]),
     this.aggregate([
-      { $match: botFilter() },
+      { $match: { ...botFilter(), ...tenantMatch(tenantId) } },
       { $group: { _id: '$ipAddress' } },
       { $count: 'visitors' },
     ]),
@@ -335,7 +344,7 @@ visitorSchema.statics.getAnalyticsOverview = async function (days = 30) {
       },
     ]),
     this.aggregate([
-      { $match: botFilter() },
+      { $match: { ...botFilter(), ...tenantMatch(tenantId) } },
       {
         $group: {
           _id: '$country',
@@ -401,10 +410,11 @@ visitorSchema.statics.getAnalyticsOverview = async function (days = 30) {
   };
 };
 
-visitorSchema.statics.getLiveActivity = async function (minutes = 5) {
+visitorSchema.statics.getLiveActivity = async function (minutes = 5, tenantId = null) {
   const since = new Date(Date.now() - Number(minutes || 5) * 60 * 1000);
   const recent = await this.find({
     ...botFilter(),
+    ...tenantMatch(tenantId),
     visitedAt: { $gte: since },
   })
     .sort({ visitedAt: -1 })
@@ -443,8 +453,8 @@ visitorSchema.statics.getLiveActivity = async function (minutes = 5) {
 };
 
 visitorSchema.statics.listAggregatedVisitors = async function (options = {}) {
-  const { limit = 500, skip = 0, country, device } = options;
-  const match = { ...botFilter() };
+  const { limit = 500, skip = 0, country, device, tenantId } = options;
+  const match = { ...botFilter(), ...tenantMatch(tenantId) };
   if (country) match.country = String(country).toUpperCase();
   if (device) match.device = device;
 
@@ -501,9 +511,9 @@ visitorSchema.statics.listAggregatedVisitors = async function (options = {}) {
 };
 
 // Device breakdown for overview panel
-visitorSchema.statics.getDeviceBreakdown = async function (days = 30) {
+visitorSchema.statics.getDeviceBreakdown = async function (days = 30, tenantId = null) {
   return this.aggregate([
-    { $match: { ...botFilter(), ...dateRangeMatch(days) } },
+    { $match: { ...botFilter(), ...dateRangeMatch(days), ...tenantMatch(tenantId) } },
     {
       $group: {
         _id: { $ifNull: ['$device', 'unknown'] },

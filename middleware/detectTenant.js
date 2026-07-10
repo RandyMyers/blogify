@@ -33,9 +33,16 @@ const resolveTenant = async (req) => {
   if (hosts.length > 0) {
     const byDomain = await Tenant.findOne({
       isActive: true,
-      domains: { $in: hosts }
+      domains: { $in: hosts },
     });
     if (byDomain) return byDomain;
+  }
+
+  // Only fall back to default tenant when the request has no identifiable client origin
+  // (admin tools, server-to-server, curl). Browsers always send Origin on cross-origin API calls.
+  const hasClientOrigin = Boolean(originHost);
+  if (hasClientOrigin) {
+    return null;
   }
 
   return Tenant.findOne({ isDefault: true, isActive: true }) || Tenant.findOne({ isActive: true });

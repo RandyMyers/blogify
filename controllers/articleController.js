@@ -3,6 +3,7 @@ const Category = require('../models/Category');
 const Author = require('../models/Author');
 const Visitor = require('../models/Visitor');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { scopedFilter, scopedIdFilter } = require('../utils/tenantScope');
 const { getClientIP, parseUserAgent, isBot, getLocationFromIP } = require('../middleware/visitorTracking');
 const logger = require('../utils/logger');
 
@@ -49,25 +50,15 @@ const normalizeTranslationsForLinks = (translations) => {
 const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
 const { getOrCreateSeoSettings } = require('./seoSettingsController');
+const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
 const {
   analyzeArticlePayload,
   applySeoScoreToDocument,
 } = require('../utils/articleSeoHelpers');
+const { buildTranslationSeo } = require('../utils/translationSeo');
 
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
-
-function buildTranslationSeo(translation) {
-  return {
-    metaTitle: translation?.metaTitle,
-    metaDescription: translation?.metaDescription,
-    keywords: translation?.keywords,
-    focusKeyword: translation?.focusKeyword || '',
-    canonicalUrl: translation?.canonicalUrl || '',
-    robots: translation?.robots || 'index,follow',
-    ogImage: translation?.ogImage || '',
-  };
-}
 
 const transformArticleForPublic = (article, language) => {
   const base = transformArticlePublic(article, language);
@@ -76,6 +67,11 @@ const transformArticleForPublic = (article, language) => {
   return {
     ...base,
     seo: buildTranslationSeo(translation),
+    twitterCard: article.twitterCard || 'summary_large_image',
+    articleSchema: {
+      publisher: article.articleSchema?.publisher || '',
+      articleSection: article.articleSchema?.articleSection || '',
+    },
     availableLanguages: article.getAvailableLanguages(),
     isGlobal: article.isGlobal,
     regionRestrictions: article.regionRestrictions,
@@ -88,7 +84,7 @@ const transformArticleForPublic = (article, language) => {
  * @access  Private/Admin
  */
 exports.getArticleById = asyncHandler(async (req, res) => {
-  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const filter = scopedIdFilter(req, req.params.id);
   const article = await Article.findOne(filter)
     .populate('category', 'name slug color description')
     .populate('author', 'name slug avatar bio socialLinks');
@@ -126,10 +122,7 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   const region = req.query.region || req.region || 'US';
   
   // Build query
-  const query = { published: true };
-  if (req.tenantId) {
-    query.tenantId = req.tenantId;
-  }
+  const query = { published: true, ...scopedFilter(req) };
   
   // Region filtering
   if (region) {
@@ -204,10 +197,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
   const seoFilter = req.query.seoFilter;
   const language = resolveRequestLanguage(req);
 
-  const query = {};
-  if (req.tenantId) {
-    query.tenantId = req.tenantId;
-  }
+  const query = { ...scopedFilter(req) };
   if (publishedParam === 'true') query.published = true;
   if (publishedParam === 'false') query.published = false;
   if (category) query.category = category;
@@ -423,7 +413,7 @@ exports.trackView = asyncHandler(async (req, res) => {
   
   // Find article by slug (check all language slugs and base slug)
   const article = await Article.findOne({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    ...scopedFilter(req),
     $or: [
       { baseSlug: slug },
       { [`translations.${language}.slug`]: slug },
@@ -469,6 +459,7 @@ exports.trackView = asyncHandler(async (req, res) => {
       const language = resolveRequestLanguage(req);
       
       await Visitor.create({
+        tenantId: req.tenantId,
         ipAddress: ip,
         country: location.country,
         region: location.region,
@@ -516,7 +507,7 @@ exports.trackView = asyncHandler(async (req, res) => {
 exports.getTopArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   const language = resolveRequestLanguage(req);
-  const articles = await Article.find({ ...(req.tenantId ? { tenantId: req.tenantId } : {}), published: true })
+  const articles = await Article.find({ ...scopedFilter(req), published: true })
     .sort({ views: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -545,7 +536,7 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const articles = await Article.find({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    ...scopedFilter(req),
     published: true,
     publishedAt: { $gte: thirtyDaysAgo },
   })
@@ -575,7 +566,7 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const language = resolveRequestLanguage(req);
   const articles = await Article.find({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    ...scopedFilter(req),
     trending: true,
     published: true,
   })
@@ -605,7 +596,7 @@ exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 1;
   const language = resolveRequestLanguage(req);
   const articles = await Article.find({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    ...scopedFilter(req),
     featured: true,
     published: true,
   })
@@ -652,14 +643,13 @@ exports.createArticle = asyncHandler(async (req, res) => {
     published,
     featured,
     trending,
-    seo
+    seo,
+    twitterCard,
+    articleSchema,
   } = req.body;
   
   // Validate category exists
-  const categoryDoc = await Category.findOne({
-    _id: category,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const categoryDoc = await Category.findOne({ _id: category });
   if (!categoryDoc) {
     return res.status(400).json({
       success: false,
@@ -668,10 +658,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
   }
   
   // Validate author exists
-  const authorDoc = await Author.findOne({
-    _id: author,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const authorDoc = await Author.findOne({ _id: author });
   if (!authorDoc) {
     return res.status(400).json({
       success: false,
@@ -682,15 +669,26 @@ exports.createArticle = asyncHandler(async (req, res) => {
   const normalizedTranslations = normalizeTranslationsForLinks(translations || {});
   const normalizedLegacyContent = normalizeContentParagraphs(content || normalizedTranslations?.[defaultLanguage || 'en']?.content || []);
 
+  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
+  const canonicalPayload = applyCanonicalUrlsToPayload(
+    {
+      defaultLanguage: defaultLanguage || 'en',
+      baseSlug: baseSlug || translations?.[defaultLanguage || 'en']?.slug,
+      slug: baseSlug || translations?.[defaultLanguage || 'en']?.slug,
+      translations: normalizedTranslations,
+    },
+    seoSettings.siteUrl
+  );
+
   // Build article data with multilingual support
   const articleData = {
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
+    ...scopedFilter(req),
     // Multilingual fields
-    baseSlug: baseSlug || (translations?.[defaultLanguage || 'en']?.slug),
+    baseSlug: canonicalPayload.baseSlug || baseSlug || (translations?.[defaultLanguage || 'en']?.slug),
     defaultLanguage: defaultLanguage || 'en',
     isGlobal: isGlobal !== undefined ? isGlobal : true,
     regionRestrictions: isGlobal ? [] : (regionRestrictions || []),
-    translations: normalizedTranslations,
+    translations: canonicalPayload.translations || normalizedTranslations,
     // Legacy fields (for backward compatibility)
     title: title || translations?.[defaultLanguage || 'en']?.title || '',
     excerpt: excerpt || translations?.[defaultLanguage || 'en']?.excerpt || '',
@@ -704,12 +702,13 @@ exports.createArticle = asyncHandler(async (req, res) => {
     published: published || false,
     featured: featured || false,
     trending: trending || false,
-    seo: seo || {}
+    seo: seo || {},
+    twitterCard: twitterCard || 'summary_large_image',
+    articleSchema: articleSchema || {},
   };
   
   const article = await Article.create(articleData);
 
-  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
   applySeoScoreToDocument(article, seoSettings.siteUrl);
   await article.save();
   
@@ -759,7 +758,7 @@ function collectArticleSlugs(article) {
 }
 
 exports.updateArticle = asyncHandler(async (req, res) => {
-  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const filter = scopedIdFilter(req, req.params.id);
   const article = await Article.findOne(filter);
   
   if (!article) {
@@ -794,9 +793,13 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     published,
     featured,
     trending,
-    seo
+    seo,
+    twitterCard,
+    articleSchema,
   } = req.body;
   
+  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
+
   // Update multilingual fields
   if (baseSlug !== undefined) article.baseSlug = baseSlug;
   if (defaultLanguage !== undefined) article.defaultLanguage = defaultLanguage;
@@ -829,6 +832,28 @@ exports.updateArticle = asyncHandler(async (req, res) => {
       }
     });
     article.markModified('translations');
+
+    const canonicalPayload = applyCanonicalUrlsToPayload(
+      {
+        defaultLanguage: article.defaultLanguage,
+        baseSlug: article.baseSlug,
+        slug: article.baseSlug,
+        translations: Object.fromEntries(
+          Object.keys(article.translations || {}).map((lang) => {
+            const t = article.translations[lang];
+            const plain = typeof t?.toObject === 'function' ? t.toObject() : t;
+            return [lang, plain];
+          })
+        ),
+      },
+      seoSettings.siteUrl
+    );
+    Object.entries(canonicalPayload.translations || {}).forEach(([lang, t]) => {
+      if (article.translations[lang] && t?.canonicalUrl) {
+        article.translations[lang].canonicalUrl = t.canonicalUrl;
+      }
+    });
+    article.markModified('translations');
   }
   
   // Update legacy fields (for backward compatibility)
@@ -838,10 +863,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (imageUrl) article.imageUrl = imageUrl;
   if (imageAlt !== undefined) article.imageAlt = imageAlt || '';
   if (category) {
-    const categoryDoc = await Category.findOne({
-      _id: category,
-      ...(req.tenantId ? { tenantId: req.tenantId } : {})
-    });
+    const categoryDoc = await Category.findOne({ _id: category });
     if (!categoryDoc) {
       return res.status(400).json({
         success: false,
@@ -851,10 +873,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     article.category = category;
   }
   if (author) {
-    const authorDoc = await Author.findOne({
-      _id: author,
-      ...(req.tenantId ? { tenantId: req.tenantId } : {})
-    });
+    const authorDoc = await Author.findOne({ _id: author });
     if (!authorDoc) {
       return res.status(400).json({
         success: false,
@@ -868,6 +887,11 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (typeof featured === 'boolean') article.featured = featured;
   if (typeof trending === 'boolean') article.trending = trending;
   if (seo) article.seo = { ...article.seo, ...seo };
+  if (twitterCard !== undefined) article.twitterCard = twitterCard;
+  if (articleSchema !== undefined) {
+    article.articleSchema = { ...(article.articleSchema || {}), ...articleSchema };
+    article.markModified('articleSchema');
+  }
 
   // Preserve any slugs that were just changed so old URLs keep working / 301-redirect.
   const currentSlugs = collectArticleSlugs(article);
@@ -887,17 +911,11 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   
   // Update counts if category or author changed
   if (category) {
-    const categoryDoc = await Category.findOne({
-      _id: category,
-      ...(req.tenantId ? { tenantId: req.tenantId } : {})
-    });
+    const categoryDoc = await Category.findOne({ _id: category });
     await categoryDoc.updatePostCount();
   }
   if (author) {
-    const authorDoc = await Author.findOne({
-      _id: author,
-      ...(req.tenantId ? { tenantId: req.tenantId } : {})
-    });
+    const authorDoc = await Author.findOne({ _id: author });
     await authorDoc.updateArticleCount();
   }
   
@@ -939,7 +957,7 @@ exports.analyzeArticleSeo = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteArticle = asyncHandler(async (req, res) => {
-  const filter = req.tenantId ? { _id: req.params.id, tenantId: req.tenantId } : { _id: req.params.id };
+  const filter = scopedIdFilter(req, req.params.id);
   const article = await Article.findOne(filter);
   
   if (!article) {
@@ -955,16 +973,10 @@ exports.deleteArticle = asyncHandler(async (req, res) => {
   await article.deleteOne();
   
   // Update counts
-  const categoryDoc = await Category.findOne({
-    _id: categoryId,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const categoryDoc = await Category.findOne({ _id: categoryId });
   if (categoryDoc) await categoryDoc.updatePostCount();
   
-  const authorDoc = await Author.findOne({
-    _id: authorId,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const authorDoc = await Author.findOne({ _id: authorId });
   if (authorDoc) await authorDoc.updateArticleCount();
   
   res.json({

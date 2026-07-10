@@ -329,12 +329,34 @@ app.use('/api/tenants', require('./routes/tenantRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/admin/readers', require('./routes/readerAdminRoutes'));
 app.use('/api/admin/seo-settings', require('./routes/seoSettingsRoutes'));
+app.use('/api/seo', require('./routes/publicSeoRoutes'));
+
+app.use('/api/prerender-data', require('./routes/prerenderDataRoutes'));
+
+// Optional runtime SSR for bots (PRERENDER_RUNTIME=true + CLIENT_BUILD_PATH)
+const { prerenderMiddleware } = require('./middleware/prerenderMiddleware');
+app.use(prerenderMiddleware);
 
 // Sitemap data routes (JSON only, used by frontend build script to generate sitemap.xml)
 app.use('/api/sitemap-data', require('./routes/sitemapDataRoutes'));
 
+// Server-rendered XML sitemaps with hreflang
+app.use('/', require('./routes/sitemapRoutes'));
+
 // Robots.txt route (public) - mainly relevant if bots crawl the API domain directly
 app.use('/', require('./routes/robots'));
+
+// Optional: serve client build when CLIENT_BUILD_PATH is set (unified Node hosting)
+const clientBuildPath = process.env.CLIENT_BUILD_PATH;
+if (clientBuildPath && fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath, { index: false }));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    const indexPath = path.join(clientBuildPath, 'index.html');
+    if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+    return next();
+  });
+}
 
 // Error handling middleware (must be last)
 const { errorHandler } = require('./middleware/errorHandler');

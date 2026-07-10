@@ -1,6 +1,8 @@
 const Visitor = require('../models/Visitor');
+const { aggregateReferrerRows } = require('../utils/referrerSource');
+const { scopedFilter } = require('../utils/tenantScope');
 const { asyncHandler } = require('../middleware/errorHandler');
-const { getClientIP, parseUserAgent, isBot, getLocationFromIP } = require('../middleware/visitorTracking');
+const { getClientIP, parseUserAgent, isBot, getLocationFromIP, getSessionId } = require('../middleware/visitorTracking');
 
 /**
  * @desc    Get visitor statistics
@@ -109,8 +111,13 @@ exports.getRecentVisitors = asyncHandler(async (req, res) => {
  */
 exports.getOverview = asyncHandler(async (req, res) => {
   const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
-  const data = await Visitor.getAnalyticsOverview(days);
-  res.json({ success: true, days, ...data });
+  const data = await Visitor.getAnalyticsOverview(days, req.tenantId);
+  res.json({
+    success: true,
+    days,
+    ...data,
+    topReferrers: aggregateReferrerRows(data.topReferrers || []),
+  });
 });
 
 /**
@@ -120,7 +127,7 @@ exports.getOverview = asyncHandler(async (req, res) => {
  */
 exports.getLiveActivity = asyncHandler(async (req, res) => {
   const minutes = Math.min(Math.max(parseInt(req.query.minutes, 10) || 5, 1), 60);
-  const data = await Visitor.getLiveActivity(minutes);
+  const data = await Visitor.getLiveActivity(minutes, req.tenantId);
   res.json({ success: true, data });
 });
 
@@ -133,7 +140,7 @@ exports.getAggregatedVisitors = asyncHandler(async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 500, 1000);
   const skip = parseInt(req.query.skip, 10) || 0;
   const { country, device } = req.query;
-  const result = await Visitor.listAggregatedVisitors({ limit, skip, country, device });
+  const result = await Visitor.listAggregatedVisitors({ limit, skip, country, device, tenantId: req.tenantId });
   res.json({
     success: true,
     visitors: result.visitors,
@@ -148,7 +155,7 @@ exports.getAggregatedVisitors = asyncHandler(async (req, res) => {
  */
 exports.getDeviceBreakdown = asyncHandler(async (req, res) => {
   const days = parseInt(req.query.days, 10) || 30;
-  const data = await Visitor.getDeviceBreakdown(days);
+  const data = await Visitor.getDeviceBreakdown(days, req.tenantId);
   res.json({ success: true, data });
 });
 
@@ -160,8 +167,9 @@ exports.getDeviceBreakdown = asyncHandler(async (req, res) => {
 exports.trackVisitor = asyncHandler(async (req, res) => {
   const ip = getClientIP(req);
   const userAgent = req.headers['user-agent'] || '';
-  const referrer = req.headers['referer'] || req.headers['referrer'] || null;
-  const { articleId, articleSlug, path, query: queryParams } = req.body;
+  const headerReferrer = req.headers['referer'] || req.headers['referrer'] || null;
+  const { articleId, articleSlug, path, query: queryParams, referrer: bodyReferrer } = req.body || {};
+  const referrer = bodyReferrer || headerReferrer || null;
   
   // Skip bots
   if (isBot(userAgent) && process.env.TRACK_BOTS !== 'true') {
@@ -179,7 +187,10 @@ exports.trackVisitor = asyncHandler(async (req, res) => {
                   req.headers['accept-language']?.split(',')[0]?.split('-')[0] || 
                   'en';
   
+  const sessionId = getSessionId(req, res);
+
   const visitor = await Visitor.create({
+    tenantId: req.tenantId,
     ipAddress: ip,
     country: location.country,
     region: location.region,
@@ -193,7 +204,7 @@ exports.trackVisitor = asyncHandler(async (req, res) => {
     query: queryParams ? JSON.stringify(queryParams) : null,
     articleId,
     articleSlug,
-    sessionId: req.cookies?.sessionId || null,
+    sessionId,
     device,
     browser,
     os,

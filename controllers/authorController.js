@@ -1,5 +1,6 @@
 const Author = require('../models/Author');
 const Article = require('../models/Article');
+const { scopedFilter } = require('../utils/tenantScope');
 const { asyncHandler } = require('../middleware/errorHandler');
 
 const formatAuthorPublic = (author, language) => {
@@ -88,9 +89,7 @@ const applyAuthorPayload = (author, body) => {
  */
 exports.getAllAuthors = asyncHandler(async (req, res) => {
   const language = (req.query.lang || req.language || 'en').toLowerCase();
-  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
-  
-  const authors = await Author.find(tenantFilter)
+  const authors = await Author.find({})
     .sort({ articleCount: -1, name: 1 });
   
   const transformedAuthors = authors.map((author) => formatAuthorPublic(author, language));
@@ -109,10 +108,7 @@ exports.getAllAuthors = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.getAuthorById = asyncHandler(async (req, res) => {
-  const author = await Author.findOne({
-    _id: req.params.id,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const author = await Author.findOne({ _id: req.params.id });
   
   if (!author) {
     return res.status(404).json({
@@ -137,18 +133,16 @@ exports.getAuthorBySlug = asyncHandler(async (req, res) => {
   const language = (req.query.lang || req.language || 'en').toLowerCase();
   
   // Try to find by language-specific slug or base slug
-  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   const slugOr = [
     { [`translations.${language}.slug`]: slug },
     { baseSlug: slug },
     { slug: slug },
   ];
   if (isObjectIdString(slug)) {
-    slugOr.push({ _id: slug, ...tenantFilter });
+    slugOr.push({ _id: slug });
   }
 
   let author = await Author.findOne({
-    ...tenantFilter,
     $or: slugOr,
   });
   
@@ -176,18 +170,16 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const region = req.region || req.query.region || 'US';
   
   // Find author by slug
-  const tenantFilter = req.tenantId ? { tenantId: req.tenantId } : {};
   const slugOr = [
     { [`translations.${language}.slug`]: slug },
     { baseSlug: slug },
     { slug: slug },
   ];
   if (isObjectIdString(slug)) {
-    slugOr.push({ _id: slug, ...tenantFilter });
+    slugOr.push({ _id: slug });
   }
 
   let author = await Author.findOne({
-    ...tenantFilter,
     $or: slugOr,
   });
   
@@ -206,7 +198,7 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const query = { 
     author: author._id, 
     published: true,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    ...scopedFilter(req),
   };
   
   // Region filtering
@@ -258,7 +250,6 @@ exports.createAuthor = asyncHandler(async (req, res) => {
   }
 
   const author = new Author({
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
     name: payload.name,
     baseSlug: payload.baseSlug,
     defaultLanguage: payload.defaultLanguage || 'en',
@@ -278,10 +269,7 @@ exports.createAuthor = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.updateAuthor = asyncHandler(async (req, res) => {
-  const author = await Author.findOne({
-    _id: req.params.id,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {}),
-  });
+  const author = await Author.findOne({ _id: req.params.id });
 
   if (!author) {
     return res.status(404).json({
@@ -305,10 +293,7 @@ exports.updateAuthor = asyncHandler(async (req, res) => {
  * @access  Private/Admin
  */
 exports.deleteAuthor = asyncHandler(async (req, res) => {
-  const author = await Author.findOne({
-    _id: req.params.id,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
-  });
+  const author = await Author.findOne({ _id: req.params.id });
   
   if (!author) {
     return res.status(404).json({
@@ -320,7 +305,7 @@ exports.deleteAuthor = asyncHandler(async (req, res) => {
   // Check if author has articles
   const articleCount = await Article.countDocuments({
     author: author._id,
-    ...(req.tenantId ? { tenantId: req.tenantId } : {})
+    ...scopedFilter(req),
   });
   if (articleCount > 0) {
     return res.status(400).json({

@@ -53,6 +53,26 @@ exports.validateCreateArticle = [
     .trim()
     .isURL()
     .withMessage('OG image URL must be a valid URL'),
+  body('translations.*.ogTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 70 })
+    .withMessage('OG title cannot exceed 70 characters'),
+  body('translations.*.ogDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('OG description cannot exceed 200 characters'),
+  body('translations.*.twitterTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 70 })
+    .withMessage('Twitter title cannot exceed 70 characters'),
+  body('translations.*.twitterDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Twitter description cannot exceed 200 characters'),
   body('translations.*.robots')
     .optional()
     .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
@@ -113,6 +133,20 @@ exports.validateCreateArticle = [
     .optional()
     .isBoolean()
     .withMessage('Trending must be a boolean'),
+  body('twitterCard')
+    .optional()
+    .isIn(['summary', 'summary_large_image'])
+    .withMessage('Invalid Twitter card type'),
+  body('articleSchema.publisher')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Article publisher cannot exceed 120 characters'),
+  body('articleSchema.articleSection')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Article section cannot exceed 120 characters'),
   asyncHandler((req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -178,6 +212,26 @@ exports.validateUpdateArticle = [
     .trim()
     .isURL()
     .withMessage('OG image URL must be a valid URL'),
+  body('translations.*.ogTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 70 })
+    .withMessage('OG title cannot exceed 70 characters'),
+  body('translations.*.ogDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('OG description cannot exceed 200 characters'),
+  body('translations.*.twitterTitle')
+    .optional()
+    .trim()
+    .isLength({ max: 70 })
+    .withMessage('Twitter title cannot exceed 70 characters'),
+  body('translations.*.twitterDescription')
+    .optional()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage('Twitter description cannot exceed 200 characters'),
   body('translations.*.robots')
     .optional()
     .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
@@ -231,6 +285,20 @@ exports.validateUpdateArticle = [
     .optional()
     .isBoolean()
     .withMessage('Trending must be a boolean'),
+  body('twitterCard')
+    .optional()
+    .isIn(['summary', 'summary_large_image'])
+    .withMessage('Invalid Twitter card type'),
+  body('articleSchema.publisher')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Article publisher cannot exceed 120 characters'),
+  body('articleSchema.articleSection')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Article section cannot exceed 120 characters'),
   asyncHandler((req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

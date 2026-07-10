@@ -256,6 +256,11 @@ const getLocationFromIP = async (ip) => {
  * Tracks visitor information and stores it in the database
  */
 const trackVisitor = async (req, res, next) => {
+  // Skip tracking for API routes — the public SPA reports page views via POST /api/visitors/track.
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+
   // Skip tracking for certain paths
   const skipPaths = ['/api/health', '/api/metrics', '/api/comments', '/favicon.ico', '/robots.txt'];
   if (skipPaths.some(path => req.path.startsWith(path))) {

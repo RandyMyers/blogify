@@ -51,6 +51,11 @@ const errorHandler = (err, req, res, next) => {
     error = { message, statusCode: 400 };
   }
 
+  // Tenant scope errors
+  if (err.name === 'TenantScopeError') {
+    error = { message: err.message, statusCode: err.statusCode || 400 };
+  }
+
   res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || 'Server Error',

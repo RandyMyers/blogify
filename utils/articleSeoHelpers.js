@@ -6,7 +6,10 @@ const DEFAULT_CONTENT_SEO = {
   warnPublishScore: 60,
   requireFocusKeyword: false,
   requireMetaOnPublish: true,
+  requireCanonicalOnPublish: true,
 };
+
+const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
 
 function getDefaultTranslation(body) {
   const lang = body.defaultLanguage || 'en';
@@ -73,7 +76,7 @@ async function validatePublishSeo(body, tenantId) {
   const contentSeo = { ...DEFAULT_CONTENT_SEO, ...(settings.contentSeo || {}) };
   const siteUrl = settings.siteUrl;
   const analysis = analyzeArticlePayload(body, siteUrl);
-  const { tr } = getDefaultTranslation(body);
+  const { tr, lang: defaultLang } = getDefaultTranslation(body);
   const errors = [];
 
   if (contentSeo.requireMetaOnPublish) {
@@ -82,6 +85,25 @@ async function validatePublishSeo(body, tenantId) {
     if (!tr.metaTitle?.trim()) errors.push('Meta title is required to publish.');
     if (!tr.metaDescription?.trim()) errors.push('Meta description is required to publish.');
     if (!body.imageAlt?.trim()) errors.push('Featured image alt text is required to publish.');
+
+    SUPPORTED_LANGUAGES.forEach((locale) => {
+      const t = body.translations?.[locale];
+      if (!t?.title?.trim() || locale === defaultLang) return;
+      const label = locale.toUpperCase();
+      if (!t.excerpt?.trim()) errors.push(`${label}: excerpt is required to publish.`);
+      if (!t.metaTitle?.trim()) errors.push(`${label}: meta title is required to publish.`);
+      if (!t.metaDescription?.trim()) errors.push(`${label}: meta description is required to publish.`);
+    });
+  }
+
+  if (contentSeo.requireCanonicalOnPublish) {
+    SUPPORTED_LANGUAGES.forEach((locale) => {
+      const t = body.translations?.[locale];
+      if (!t?.title?.trim()) return;
+      if (!t.canonicalUrl?.trim()) {
+        errors.push(`${locale.toUpperCase()}: canonical URL is required to publish.`);
+      }
+    });
   }
 
   if (contentSeo.requireFocusKeyword && !tr.focusKeyword?.trim()) {

@@ -19,6 +19,10 @@ const translationSchema = new mongoose.Schema({
     enum: ['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'],
   },
   ogImage: { type: String, trim: true, default: '' },
+  ogTitle: { type: String, maxlength: 70, trim: true, default: '' },
+  ogDescription: { type: String, maxlength: 200, trim: true, default: '' },
+  twitterTitle: { type: String, maxlength: 70, trim: true, default: '' },
+  twitterDescription: { type: String, maxlength: 200, trim: true, default: '' },
 }, { _id: false });
 
 const articleSchema = new mongoose.Schema({
@@ -170,6 +174,15 @@ const articleSchema = new mongoose.Schema({
   seoScoreUpdatedAt: {
     type: Date,
     default: null,
+  },
+  twitterCard: {
+    type: String,
+    enum: ['summary', 'summary_large_image'],
+    default: 'summary_large_image',
+  },
+  articleSchema: {
+    publisher: { type: String, trim: true, default: '' },
+    articleSection: { type: String, trim: true, default: '' },
   },
   // Legacy SEO field (kept for backward compatibility)
   seo: {
