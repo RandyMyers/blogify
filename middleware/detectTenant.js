@@ -1,4 +1,5 @@
 const Tenant = require('../models/Tenant');
+const { normalizeTenantSlug } = require('../utils/tenantResolve');
 
 const normalizeHost = (value = '') => {
   return value
@@ -19,7 +20,7 @@ const resolveTenant = async (req) => {
     if (byId) return byId;
   }
 
-  const candidateSlug = (tenantSlugHeader || tenantQuery || '').toString().toLowerCase().trim();
+  const candidateSlug = normalizeTenantSlug(tenantSlugHeader || tenantQuery || '');
   if (candidateSlug) {
     const bySlug = await Tenant.findOne({ slug: candidateSlug, isActive: true });
     if (bySlug) return bySlug;

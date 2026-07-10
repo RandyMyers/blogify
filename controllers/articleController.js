@@ -904,7 +904,6 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     article.markModified('previousSlugs');
   }
 
-  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
   applySeoScoreToDocument(article, seoSettings.siteUrl);
   
   await article.save();

@@ -1,20 +1,4 @@
-const Article = require('../models/Article');
-const Category = require('../models/Category');
-const Author = require('../models/Author');
-const { getOrCreateSeoSettings } = require('../controllers/seoSettingsController');
-
-const tenantFilter = (req) => (req.tenantId ? { tenantId: req.tenantId } : {});
-
-async function getSitemapFlags(req) {
-  const settings = await getOrCreateSeoSettings(req.tenantId);
-  const sitemap = settings.sitemap || {};
-  return {
-    enabled: sitemap.enabled !== false,
-    includeArticles: sitemap.includeArticles !== false,
-    includeCategories: sitemap.includeCategories !== false,
-    includeAuthors: sitemap.includeAuthors !== false,
-  };
-}
+const { buildSitemapData } = require('../utils/sitemapData');
 
 /**
  * Lightweight JSON endpoints used by the frontend build script
@@ -24,16 +8,7 @@ async function getSitemapFlags(req) {
 // GET /api/sitemap-data/articles
 const getArticlesForSitemap = async (req, res) => {
   try {
-    const flags = await getSitemapFlags(req);
-    if (!flags.enabled || !flags.includeArticles) {
-      return res.json({ articles: [], tenant: req.tenantSlug || null });
-    }
-
-    const articles = await Article.find({ published: true, ...tenantFilter(req) })
-      .select('baseSlug defaultLanguage translations updatedAt publishedAt regionRestrictions isGlobal')
-      .sort({ updatedAt: -1 })
-      .limit(50000);
-
+    const { articles } = await buildSitemapData(req.tenantId);
     res.json({
       articles,
       tenant: req.tenantSlug || null,
@@ -47,16 +22,7 @@ const getArticlesForSitemap = async (req, res) => {
 // GET /api/sitemap-data/categories
 const getCategoriesForSitemap = async (req, res) => {
   try {
-    const flags = await getSitemapFlags(req);
-    if (!flags.enabled || !flags.includeCategories) {
-      return res.json({ categories: [], tenant: req.tenantSlug || null });
-    }
-
-    const categories = await Category.find({})
-      .select('baseSlug defaultLanguage translations updatedAt')
-      .sort({ updatedAt: -1 })
-      .limit(50000);
-
+    const { categories } = await buildSitemapData(req.tenantId);
     res.json({
       categories,
       tenant: req.tenantSlug || null,
@@ -70,16 +36,7 @@ const getCategoriesForSitemap = async (req, res) => {
 // GET /api/sitemap-data/authors
 const getAuthorsForSitemap = async (req, res) => {
   try {
-    const flags = await getSitemapFlags(req);
-    if (!flags.enabled || !flags.includeAuthors) {
-      return res.json({ authors: [], tenant: req.tenantSlug || null });
-    }
-
-    const authors = await Author.find(tenantFilter(req))
-      .select('baseSlug defaultLanguage translations updatedAt')
-      .sort({ updatedAt: -1 })
-      .limit(50000);
-
+    const { authors } = await buildSitemapData(req.tenantId);
     res.json({
       authors,
       tenant: req.tenantSlug || null,

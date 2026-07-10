@@ -2,7 +2,7 @@ const Article = require('../models/Article');
 const Category = require('../models/Category');
 const Author = require('../models/Author');
 const Region = require('../models/Region');
-const { getOrCreateSeoSettings } = require('../controllers/seoSettingsController');
+const { getOrCreateSeoSettings } = require('../utils/seoSettingsStore');
 const { buildTranslationSeo } = require('./translationSeo');
 const {
   STATIC_PAGES,
@@ -116,7 +116,7 @@ async function buildPrerenderPages(tenantId) {
       .sort({ updatedAt: -1 })
       .limit(50000),
     Category.find({}).sort({ updatedAt: -1 }).limit(50000),
-    Author.find(tenantFilter).sort({ updatedAt: -1 }).limit(50000),
+    Author.find({}).sort({ updatedAt: -1 }).limit(50000),
   ]);
 
   const langToRegion = buildLangToRegionMap(regions);

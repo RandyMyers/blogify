@@ -40,6 +40,14 @@ if (envResult.error && !process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_N
   console.warn('  -', path.resolve('.env'));
 }
 
+// Check if we're in a serverless environment (Vercel, AWS Lambda, etc.)
+const isServerless = !!(
+  process.env.VERCEL ||
+  process.env.VERCEL_ENV ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.SERVERLESS
+);
+
 // Now require modules that might use process.env
 const logger = require('./utils/logger');
 const { validateEnv } = require('./utils/envValidator');
@@ -133,24 +141,68 @@ app.use((req, res, next) => {
 const mongoOptions = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  maxPoolSize: 10, // Maximum number of connections in pool
-  minPoolSize: 2, // Minimum number of connections in pool
-  serverSelectionTimeoutMS: 5000, // How long to try connecting
-  socketTimeoutMS: 45000, // How long to wait for a response
-  family: 4 // Use IPv4, skip trying IPv6
+  maxPoolSize: isServerless ? 1 : 10,
+  minPoolSize: isServerless ? 0 : 2,
+  serverSelectionTimeoutMS: isServerless ? 8000 : 5000,
+  socketTimeoutMS: 45000,
+  family: 4,
+  bufferCommands: false,
 };
 
-mongoose.connect(env.MONGO_URL, mongoOptions)
-  .then(() => {
-    logger.info('Connected to MongoDB');
-    logger.info(`Connection pool configured: min=${mongoOptions.minPoolSize}, max=${mongoOptions.maxPoolSize}`);
-  })
-  .catch((error) => {
-    logger.error('Failed to connect to MongoDB', error);
-    if (process.env.NODE_ENV !== 'test') {
-      process.exit(1); // Exit if DB connection fails (except in test)
+let cachedConnection = global._mongoConnection || null;
+let connectionPromise = global._mongoConnectionPromise || null;
+
+async function connectToDatabase() {
+  if (cachedConnection && mongoose.connection.readyState === 1) {
+    return cachedConnection;
+  }
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  connectionPromise = mongoose.connect(env.MONGO_URL, mongoOptions)
+    .then(() => {
+      cachedConnection = mongoose.connection;
+      global._mongoConnection = cachedConnection;
+      logger.info('Connected to MongoDB');
+      if (!isServerless) {
+        logger.info(`Connection pool configured: min=${mongoOptions.minPoolSize}, max=${mongoOptions.maxPoolSize}`);
+      }
+      return cachedConnection;
+    })
+    .catch((error) => {
+      connectionPromise = null;
+      global._mongoConnectionPromise = null;
+      logger.error('Failed to connect to MongoDB', error);
+      throw error;
+    });
+
+  global._mongoConnectionPromise = connectionPromise;
+  return connectionPromise;
+}
+
+if (isServerless) {
+  app.use(async (req, res, next) => {
+    if (req.method === 'OPTIONS' || req.path === '/health') {
+      return next();
+    }
+    try {
+      await connectToDatabase();
+      return next();
+    } catch (error) {
+      return res.status(503).json({
+        success: false,
+        message: 'Database temporarily unavailable',
+      });
     }
   });
+} else {
+  connectToDatabase().catch((error) => {
+    if (process.env.NODE_ENV !== 'test') {
+      process.exit(1);
+    }
+  });
+}
 
 // Handle connection events
 mongoose.connection.on('error', (err) => {
@@ -370,8 +422,8 @@ app.use((req, res) => {
   });
 });
 
-// Initialize scheduled jobs (only in production or when ENABLE_JOBS is true)
-if (env.NODE_ENV === 'production' || env.ENABLE_JOBS === 'true') {
+// Initialize scheduled jobs (only in traditional server, not serverless)
+if (!isServerless && (env.NODE_ENV === 'production' || env.ENABLE_JOBS === 'true')) {
   try {
     const { initializeWalletScheduler } = require('./scheduler/walletScheduler');
     initializeWalletScheduler();
@@ -384,13 +436,14 @@ if (env.NODE_ENV === 'production' || env.ENABLE_JOBS === 'true') {
 // Start the server
 const PORT = env.PORT;
 
-// Only start server if not in test environment
-if (process.env.NODE_ENV !== 'test') {
+// Only start server if not in test or serverless environment
+if (process.env.NODE_ENV !== 'test' && !isServerless) {
   app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
     logger.info(`Environment: ${env.NODE_ENV}`);
   });
 }
 
-// Export app for testing
+// Export app for testing and Vercel serverless
 module.exports = app;
+module.exports.connectToDatabase = connectToDatabase;

@@ -56,6 +56,20 @@ const errorHandler = (err, req, res, next) => {
     error = { message: err.message, statusCode: err.statusCode || 400 };
   }
 
+  const origin = req.headers.origin;
+  if (origin) {
+    const { isAllowedOrigin } = require('../utils/corsOrigins');
+    if (isAllowedOrigin(origin, {
+      clientUrl: process.env.CLIENT_URL,
+      adminUrl: process.env.ADMIN_URL,
+      isDevelopment: process.env.NODE_ENV !== 'production',
+    })) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+
   res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || 'Server Error',
