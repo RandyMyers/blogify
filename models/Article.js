@@ -2,6 +2,14 @@ const mongoose = require('mongoose');
 const generateSlug = require('../utils/generateSlug');
 const calculateReadTime = require('../utils/calculateReadTime');
 
+const articleOfferSchema = new mongoose.Schema({
+  imageUrl: { type: String, trim: true, default: '' },
+  title: { type: String, maxlength: 120, trim: true, default: '' },
+  description: { type: String, maxlength: 300, trim: true, default: '' },
+  url: { type: String, trim: true, default: '' },
+  buttonLabel: { type: String, maxlength: 40, trim: true, default: 'View offer' },
+}, { _id: true });
+
 // Translation schema for nested translations
 const translationSchema = new mongoose.Schema({
   slug: { type: String, lowercase: true, index: true },
@@ -23,6 +31,7 @@ const translationSchema = new mongoose.Schema({
   ogDescription: { type: String, maxlength: 200, trim: true, default: '' },
   twitterTitle: { type: String, maxlength: 70, trim: true, default: '' },
   twitterDescription: { type: String, maxlength: 200, trim: true, default: '' },
+  offers: { type: [articleOfferSchema], default: [] },
 }, { _id: false });
 
 const articleSchema = new mongoose.Schema({

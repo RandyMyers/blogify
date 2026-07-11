@@ -77,6 +77,35 @@ exports.validateCreateArticle = [
     .optional()
     .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
     .withMessage('Invalid robots directive'),
+  body('translations.*.offers')
+    .optional()
+    .isArray()
+    .withMessage('Offers must be an array'),
+  body('translations.*.offers.*.imageUrl')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Offer image URL must be a valid URL'),
+  body('translations.*.offers.*.title')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Offer title cannot exceed 120 characters'),
+  body('translations.*.offers.*.description')
+    .optional()
+    .trim()
+    .isLength({ max: 300 })
+    .withMessage('Offer description cannot exceed 300 characters'),
+  body('translations.*.offers.*.url')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Offer URL must be a valid URL'),
+  body('translations.*.offers.*.buttonLabel')
+    .optional()
+    .trim()
+    .isLength({ max: 40 })
+    .withMessage('Offer button label cannot exceed 40 characters'),
   body('category')
     .notEmpty()
     .withMessage('Category is required')
@@ -236,6 +265,35 @@ exports.validateUpdateArticle = [
     .optional()
     .isIn(['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'])
     .withMessage('Invalid robots directive'),
+  body('translations.*.offers')
+    .optional()
+    .isArray()
+    .withMessage('Offers must be an array'),
+  body('translations.*.offers.*.imageUrl')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Offer image URL must be a valid URL'),
+  body('translations.*.offers.*.title')
+    .optional()
+    .trim()
+    .isLength({ max: 120 })
+    .withMessage('Offer title cannot exceed 120 characters'),
+  body('translations.*.offers.*.description')
+    .optional()
+    .trim()
+    .isLength({ max: 300 })
+    .withMessage('Offer description cannot exceed 300 characters'),
+  body('translations.*.offers.*.url')
+    .optional({ values: 'falsy' })
+    .trim()
+    .isURL()
+    .withMessage('Offer URL must be a valid URL'),
+  body('translations.*.offers.*.buttonLabel')
+    .optional()
+    .trim()
+    .isLength({ max: 40 })
+    .withMessage('Offer button label cannot exceed 40 characters'),
   body('category')
     .optional()
     .custom((value) => {

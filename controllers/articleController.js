@@ -39,9 +39,25 @@ const normalizeTranslationsForLinks = (translations) => {
       normalized[lang] = translation;
       return;
     }
+    const offers = Array.isArray(translation.offers)
+      ? translation.offers
+          .map((offer) => {
+            if (!offer || typeof offer !== 'object') return null;
+            return {
+              imageUrl: String(offer.imageUrl || '').trim(),
+              title: String(offer.title || '').trim(),
+              description: String(offer.description || '').trim(),
+              url: String(offer.url || '').trim(),
+              buttonLabel: String(offer.buttonLabel || 'View offer').trim() || 'View offer',
+            };
+          })
+          .filter((offer) => offer && (offer.title || offer.url || offer.imageUrl))
+      : [];
+
     normalized[lang] = {
       ...translation,
-      content: normalizeContentParagraphs(translation.content)
+      content: normalizeContentParagraphs(translation.content),
+      offers,
     };
   });
   return normalized;
@@ -395,6 +411,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       trending: article.trending,
       seo: buildTranslationSeo(activeTranslation),
       language: language,
+      offers: Array.isArray(activeTranslation.offers) ? activeTranslation.offers : [],
       availableTranslations: availableTranslations,
       isGlobal: article.isGlobal,
       regionRestrictions: article.regionRestrictions
