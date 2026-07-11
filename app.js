@@ -377,6 +377,7 @@ app.use('/api/search', require('./routes/searchRoutes'));
 app.use('/api/ads', require('./routes/adRoutes'));
 app.use('/api/bookmarks', require('./routes/bookmarkRoutes'));
 app.use('/api/visitors', require('./routes/visitorRoutes'));
+app.use('/api/offer-clicks', require('./routes/offerClickRoutes'));
 app.use('/api/tenants', require('./routes/tenantRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/admin/readers', require('./routes/readerAdminRoutes'));

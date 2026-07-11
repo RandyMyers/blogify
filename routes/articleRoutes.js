@@ -15,6 +15,7 @@ const {
   trackView,
   analyzeArticleSeo,
 } = require('../controllers/articleController');
+const { trackOfferClick } = require('../controllers/offerClickController');
 const { protect, isAdmin } = require('../middleware/auth');
 const { detectRegion } = require('../middleware/detectRegion');
 const { checkArticleAccess } = require('../middleware/checkArticleAccess');
@@ -29,6 +30,7 @@ router.get('/top', getAllArticles); // Use getAllArticles with featured/trending
 router.get('/popular', getAllArticles);
 router.get('/trending', getAllArticles);
 router.get('/featured', getAllArticles);
+router.post('/offers/click', trackOfferClick);
 // Track view (must be before /:slug route to avoid route conflict)
 router.post('/:slug/view', trackView);
 router.get('/:slug', checkArticleAccess, getArticleBySlug);

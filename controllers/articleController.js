@@ -73,6 +73,18 @@ const {
 } = require('../utils/articleSeoHelpers');
 const { buildTranslationSeo } = require('../utils/translationSeo');
 
+function serializeOffers(offers = []) {
+  if (!Array.isArray(offers)) return [];
+  return offers.map((offer) => ({
+    _id: offer._id,
+    imageUrl: offer.imageUrl || '',
+    title: offer.title || '',
+    description: offer.description || '',
+    url: offer.url || '',
+    buttonLabel: offer.buttonLabel || 'View offer',
+  }));
+}
+
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
 
@@ -411,7 +423,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       trending: article.trending,
       seo: buildTranslationSeo(activeTranslation),
       language: language,
-      offers: Array.isArray(activeTranslation.offers) ? activeTranslation.offers : [],
+      offers: serializeOffers(activeTranslation.offers),
       availableTranslations: availableTranslations,
       isGlobal: article.isGlobal,
       regionRestrictions: article.regionRestrictions
