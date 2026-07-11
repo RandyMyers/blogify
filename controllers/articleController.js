@@ -6,6 +6,13 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { scopedFilter, scopedIdFilter } = require('../utils/tenantScope');
 const { getClientIP, parseUserAgent, isBot, getLocationFromIP } = require('../middleware/visitorTracking');
 const logger = require('../utils/logger');
+const Region = require('../models/Region');
+const {
+  getSlugForRegion,
+  collectArticleSlugs,
+  buildAvailableRegions,
+  sanitizeRegionSlugsInput,
+} = require('../utils/regionSlug');
 
 const FOLLOW_BLOCKLIST = new Set(['nofollow', 'ugc', 'sponsored']);
 
@@ -361,13 +368,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
   // Article should already be attached by checkArticleAccess middleware
   const article = req.article;
   const language = resolveRequestLanguage(req);
-  
-  if (!article) {
-    return res.status(404).json({
-      success: false,
-      message: 'Article not found'
-    });
-  }
+  const region = req.query.region || req.region || 'US';
   
   // Get translation for current language
   const translation = article.getTranslation(language);
@@ -380,6 +381,9 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       message: 'Translation not available'
     });
   }
+
+  const regions = await Region.find({ isActive: true }).select('code defaultLanguage isActive').lean();
+  const regionSlug = getSlugForRegion(article, region);
   
   // Increment views
   await article.incrementViews();
@@ -406,7 +410,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
     data: {
       _id: article._id,
       baseSlug: article.baseSlug,
-      slug: activeTranslation.slug,
+      slug: regionSlug,
       title: activeTranslation.title,
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
@@ -425,6 +429,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       language: language,
       offers: serializeOffers(activeTranslation.offers),
       availableTranslations: availableTranslations,
+      availableRegions: buildAvailableRegions(article, regions),
       isGlobal: article.isGlobal,
       regionRestrictions: article.regionRestrictions
     }
@@ -658,6 +663,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     defaultLanguage,
     isGlobal,
     regionRestrictions,
+    regionSlugs,
     translations,
     // Legacy fields (for backward compatibility)
     title,
@@ -717,6 +723,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     defaultLanguage: defaultLanguage || 'en',
     isGlobal: isGlobal !== undefined ? isGlobal : true,
     regionRestrictions: isGlobal ? [] : (regionRestrictions || []),
+    regionSlugs: sanitizeRegionSlugsInput(regionSlugs || {}),
     translations: canonicalPayload.translations || normalizedTranslations,
     // Legacy fields (for backward compatibility)
     title: title || translations?.[defaultLanguage || 'en']?.title || '',
@@ -772,20 +779,6 @@ exports.createArticle = asyncHandler(async (req, res) => {
  */
 const ARTICLE_SLUG_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
 
-// Gather every slug that currently resolves to an article (baseSlug, legacy slug,
-// and each per-language translation slug). Used to detect renamed slugs.
-function collectArticleSlugs(article) {
-  const slugs = new Set();
-  if (article.baseSlug) slugs.add(article.baseSlug);
-  if (article.slug) slugs.add(article.slug);
-  const translations = article.translations || {};
-  ARTICLE_SLUG_LANGUAGES.forEach((lang) => {
-    const t = translations[lang];
-    if (t && t.slug) slugs.add(t.slug);
-  });
-  return slugs;
-}
-
 exports.updateArticle = asyncHandler(async (req, res) => {
   const filter = scopedIdFilter(req, req.params.id);
   const article = await Article.findOne(filter);
@@ -808,6 +801,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     defaultLanguage,
     isGlobal,
     regionRestrictions,
+    regionSlugs,
     translations,
     // Legacy fields
     title,
@@ -841,6 +835,10 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   }
   if (regionRestrictions !== undefined && !isGlobal) {
     article.regionRestrictions = regionRestrictions;
+  }
+  if (regionSlugs !== undefined) {
+    article.regionSlugs = sanitizeRegionSlugsInput(regionSlugs);
+    article.markModified('regionSlugs');
   }
   if (translations !== undefined) {
     const normalizedTranslations = normalizeTranslationsForLinks(translations);

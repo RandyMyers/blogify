@@ -141,6 +141,15 @@ exports.validateCreateArticle = [
     .optional()
     .isIn(['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'])
     .withMessage('Invalid region code'),
+  body('regionSlugs')
+    .optional()
+    .isObject()
+    .withMessage('regionSlugs must be an object'),
+  body('regionSlugs.*')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .withMessage('Region slug must be between 1 and 200 characters'),
   body('tags')
     .optional()
     .isArray()
@@ -322,6 +331,15 @@ exports.validateUpdateArticle = [
     .optional()
     .isIn(['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'])
     .withMessage('Invalid region code'),
+  body('regionSlugs')
+    .optional()
+    .isObject()
+    .withMessage('regionSlugs must be an object'),
+  body('regionSlugs.*')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 200 })
+    .withMessage('Region slug must be between 1 and 200 characters'),
   body('tags')
     .optional()
     .isArray()

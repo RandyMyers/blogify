@@ -1,6 +1,7 @@
 const Article = require('../models/Article');
 const { asyncHandler } = require('./errorHandler');
 const { isObjectIdString } = require('../utils/objectIdUtils');
+const { getSlugForRegion } = require('../utils/regionSlug');
 
 const AUTHOR_POPULATE = {
   path: 'author',
@@ -31,6 +32,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
   const tenantClause = tenantId ? { tenantId } : {};
 
   const slugOr = [
+    { [`regionSlugs.${region}`]: slug },
     { [`translations.${language}.slug`]: slug },
     { baseSlug: slug },
     { slug },
@@ -52,6 +54,17 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
       article = await Article.findOne({
         ...tenantClause,
         [`translations.${lang}.slug`]: slug,
+      });
+      if (article) break;
+    }
+  }
+
+  if (!article) {
+    const regionCodes = ['US', 'GB', 'CA', 'AU', 'IE', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'LU', 'CH', 'AT'];
+    for (const code of regionCodes) {
+      article = await Article.findOne({
+        ...tenantClause,
+        [`regionSlugs.${code}`]: slug,
       });
       if (article) break;
     }
@@ -91,7 +104,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
 
       if (alternative) {
         const altTranslation = alternative.getTranslation(language);
-        const altSlug = altTranslation?.slug || alternative.baseSlug;
+        const altSlug = getSlugForRegion(alternative, region) || altTranslation?.slug || alternative.baseSlug;
         const regionPrefix = region === 'US' ? '' : `/${region.toLowerCase()}`;
         return res.redirect(`${regionPrefix}/article/${altSlug}`);
       }

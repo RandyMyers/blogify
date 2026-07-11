@@ -2,6 +2,7 @@ const Article = require('../models/Article');
 const Category = require('../models/Category');
 const Author = require('../models/Author');
 const Region = require('../models/Region');
+const { getSlugForRegion } = require('../utils/regionSlug');
 
 // Base URL from environment or default
 const BASE_URL = process.env.CLIENT_URL || 'https://bloomwik.com';
@@ -198,7 +199,7 @@ const generateArticlesSitemap = async (req, res) => {
     const articles = await Article.find({ 
       published: true  // Fixed: use published field (boolean) instead of status
     })
-    .select('baseSlug defaultLanguage translations updatedAt regionRestrictions isGlobal')
+    .select('baseSlug defaultLanguage translations updatedAt regionRestrictions isGlobal regionSlugs')
     .sort({ updatedAt: -1 })
     .limit(50000); // Google's limit
     
@@ -216,7 +217,7 @@ const generateArticlesSitemap = async (req, res) => {
         : regions; // Include all regions if global or if no restrictions specified
       
       // Default URL (US/English) - only include if article is global or US is in available regions
-      const defaultSlug = article.translations[article.defaultLanguage]?.slug || article.baseSlug;
+      const defaultSlug = getSlugForRegion(article, 'US');
       const usRegion = regions.find(r => r.code === 'US');
       const shouldIncludeDefault = article.isGlobal || (usRegion && availableRegions.some(r => r.code === 'US'));
       
@@ -230,51 +231,49 @@ const generateArticlesSitemap = async (req, res) => {
         // Add alternate language links for all available translations
         Object.keys(article.translations).forEach(lang => {
           const translation = article.translations[lang];
-          if (translation && translation.slug) {
-            const region = Object.keys(REGION_LANGUAGE_MAP).find(r => REGION_LANGUAGE_MAP[r] === lang);
-            const regionCode = region ? region.toLowerCase() : 'us';
-            const articleUrl = regionCode === 'us' 
-              ? `${BASE_URL}/article/${translation.slug}`
-              : `${BASE_URL}/${regionCode}/article/${translation.slug}`;
-            xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${articleUrl}" />\n`;
-          }
+          if (!translation) return;
+          const region = Object.keys(REGION_LANGUAGE_MAP).find(r => REGION_LANGUAGE_MAP[r] === lang);
+          if (!region) return;
+          const altSlug = getSlugForRegion(article, region);
+          if (!altSlug) return;
+          const regionCode = region.toLowerCase();
+          const articleUrl = region === 'US'
+            ? `${BASE_URL}/article/${altSlug}`
+            : `${BASE_URL}/${regionCode}/article/${altSlug}`;
+          xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${articleUrl}" />\n`;
         });
         
         xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/article/${defaultSlug}" />\n`;
         xml += '  </url>\n';
       }
       
-      // Regional versions
       availableRegions.forEach(region => {
-        if (region.code !== 'US') {
-          const lang = REGION_LANGUAGE_MAP[region.code] || article.defaultLanguage;
-          const translation = article.translations[lang];
-          
-          if (translation && translation.slug) {
-            const regionCode = region.code.toLowerCase();
-            xml += '  <url>\n';
-            xml += `    <loc>${BASE_URL}/${regionCode}/article/${translation.slug}</loc>\n`;
-            xml += `    <lastmod>${article.updatedAt.toISOString()}</lastmod>\n`;
-            xml += '    <changefreq>weekly</changefreq>\n';
-            xml += '    <priority>0.8</priority>\n';
-            
-            // Add alternate language links
-            Object.keys(article.translations).forEach(l => {
-              const trans = article.translations[l];
-              if (trans && trans.slug) {
-                const r = Object.keys(REGION_LANGUAGE_MAP).find(reg => REGION_LANGUAGE_MAP[reg] === l);
-                const rCode = r ? r.toLowerCase() : 'us';
-                const artUrl = rCode === 'us' 
-                  ? `${BASE_URL}/article/${trans.slug}`
-                  : `${BASE_URL}/${rCode}/article/${trans.slug}`;
-                xml += `    <xhtml:link rel="alternate" hreflang="${l}" href="${artUrl}" />\n`;
-              }
-            });
-            
-            xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/article/${defaultSlug}" />\n`;
-            xml += '  </url>\n';
-          }
-        }
+        const slug = getSlugForRegion(article, region.code);
+        if (!slug) return;
+
+        const regionCode = region.code.toLowerCase();
+        const isUs = region.code === 'US';
+        if (isUs && shouldIncludeDefault) return;
+
+        xml += '  <url>\n';
+        xml += `    <loc>${isUs ? `${BASE_URL}/article/${slug}` : `${BASE_URL}/${regionCode}/article/${slug}`}</loc>\n`;
+        xml += `    <lastmod>${article.updatedAt.toISOString()}</lastmod>\n`;
+        xml += '    <changefreq>weekly</changefreq>\n';
+        xml += '    <priority>0.8</priority>\n';
+
+        availableRegions.forEach((altRegion) => {
+          const altSlug = getSlugForRegion(article, altRegion.code);
+          if (!altSlug) return;
+          const lang = REGION_LANGUAGE_MAP[altRegion.code] || article.defaultLanguage;
+          const rCode = altRegion.code.toLowerCase();
+          const artUrl = altRegion.code === 'US'
+            ? `${BASE_URL}/article/${altSlug}`
+            : `${BASE_URL}/${rCode}/article/${altSlug}`;
+          xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${artUrl}" />\n`;
+        });
+
+        xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/article/${defaultSlug}" />\n`;
+        xml += '  </url>\n';
       });
     });
     

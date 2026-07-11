@@ -11,6 +11,7 @@ const {
   absUrl,
   stripHtml,
 } = require('./prerenderMeta');
+const { getSlugForRegion } = require('./regionSlug');
 
 function getSlugForLang(entity, lang) {
   const tr = entity.translations?.[lang];
@@ -50,21 +51,36 @@ function articleAvailableInRegion(article, regionCode) {
   return restrictions.map((r) => String(r).toUpperCase()).includes(code);
 }
 
-function buildHreflangForEntity(siteUrl, entity, pathBuilder) {
-  const langs = new Set(Object.keys(entity.translations || {}));
-  if (entity.defaultLanguage) langs.add(entity.defaultLanguage);
-
+function buildHreflangForEntity(siteUrl, entity, pathBuilder, regions = []) {
+  const source = Array.isArray(regions) && regions.length ? regions : [];
   const links = [];
-  langs.forEach((lang) => {
-    const slug = getSlugForLang(entity, lang);
-    if (!slug) return;
-    const region = Object.keys(LANG_PREFERRED_REGION).find((l) => l === lang);
-    const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
-    const path = pathBuilder(regionCode, slug);
-    links.push({ lang, href: absUrl(siteUrl, path) });
-  });
 
-  const defaultSlug = getSlugForLang(entity, entity.defaultLanguage || 'en');
+  if (source.length) {
+    source
+      .filter((region) => region?.isActive !== false)
+      .forEach((region) => {
+        const slug = getSlugForRegion(entity, region.code);
+        if (!slug) return;
+        const lang = String(region.defaultLanguage || 'en').toLowerCase();
+        links.push({
+          lang,
+          href: absUrl(siteUrl, pathBuilder(region.code, slug)),
+        });
+      });
+  } else {
+    const langs = new Set(Object.keys(entity.translations || {}));
+    if (entity.defaultLanguage) langs.add(entity.defaultLanguage);
+
+    langs.forEach((lang) => {
+      const slug = getSlugForLang(entity, lang);
+      if (!slug) return;
+      const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
+      const path = pathBuilder(regionCode, slug);
+      links.push({ lang, href: absUrl(siteUrl, path) });
+    });
+  }
+
+  const defaultSlug = getSlugForRegion(entity, 'US') || getSlugForLang(entity, entity.defaultLanguage || 'en');
   if (defaultSlug) {
     links.push({
       lang: 'x-default',
@@ -177,7 +193,7 @@ async function buildPrerenderPages(tenantId) {
           : article.translations?.[lang];
       if (!translation?.title) return;
 
-      const slug = translation.slug || article.baseSlug;
+      const slug = getSlugForRegion(article, region.code);
       if (!slug) return;
 
       const pagePath = pathForRegion(region.code, `/article/${slug}`);
@@ -185,8 +201,11 @@ async function buildPrerenderPages(tenantId) {
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
 
-      const hreflang = buildHreflangForEntity(siteUrl, article, (rc, s) =>
-        pathForRegion(rc, `/article/${s}`)
+      const hreflang = buildHreflangForEntity(
+        siteUrl,
+        article,
+        (rc, s) => pathForRegion(rc, `/article/${s}`),
+        regions
       );
 
       const bodyParagraphs = Array.isArray(translation.content)

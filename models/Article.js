@@ -64,6 +64,12 @@ const articleSchema = new mongoose.Schema({
     uppercase: true,
     enum: ['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT']
   }],
+  // Per-country URL slugs (e.g. US vs AU can differ while sharing English content).
+  regionSlugs: {
+    type: Map,
+    of: String,
+    default: undefined,
+  },
   
   // Translations object - supports multiple languages
   translations: {
@@ -237,6 +243,10 @@ articleSchema.index({ tenantId: 1, slug: 1 });
 // Old-slug redirect lookup
 articleSchema.index({ previousSlugs: 1 });
 articleSchema.index({ tenantId: 1, previousSlugs: 1 });
+articleSchema.index({ 'regionSlugs.US': 1 });
+articleSchema.index({ 'regionSlugs.GB': 1 });
+articleSchema.index({ 'regionSlugs.AU': 1 });
+articleSchema.index({ 'regionSlugs.CA': 1 });
 
 // Region and global access indexes
 articleSchema.index({ isGlobal: 1, regionRestrictions: 1 });
