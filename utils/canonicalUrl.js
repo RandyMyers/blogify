@@ -86,19 +86,24 @@ function resolveTranslationCanonical({
   siteUrl,
   manualCanonical,
 }) {
-  const trimmed = String(manualCanonical || '').trim();
-  if (trimmed) {
-    return normalizeManualCanonical(trimmed, siteUrl, LANG_PREFERRED_REGION[defLang] || 'US', masterSlug);
-  }
-
   const defLang = defaultLanguage || 'en';
   const masterSlug = defaultSlug || slug;
+  const trimmed = String(manualCanonical || '').trim();
+
+  if (trimmed) {
+    return normalizeManualCanonical(
+      trimmed,
+      siteUrl,
+      LANG_PREFERRED_REGION[defLang] || 'US',
+      masterSlug
+    );
+  }
 
   if (String(lang).toLowerCase() === String(defLang).toLowerCase()) {
     return buildArticleCanonicalUrl(siteUrl, defLang, masterSlug, defLang);
   }
 
-  return buildArticleCanonicalUrl(siteUrl, defLang, masterSlug, defLang);
+  return buildArticleCanonicalUrl(siteUrl, lang, slug, defLang);
 }
 
 /**

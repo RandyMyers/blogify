@@ -123,7 +123,7 @@ visitorSchema.statics.getStats = async function(filters = {}) {
   const matchStage = {};
   
   if (filters.articleId) {
-    matchStage.articleId = mongoose.Types.ObjectId(filters.articleId);
+    matchStage.articleId = new mongoose.Types.ObjectId(filters.articleId);
   }
   
   if (filters.startDate || filters.endDate) {
@@ -530,7 +530,7 @@ visitorSchema.statics.getArticleViewsByCountry = async function(articleId) {
   return await this.aggregate([
     {
       $match: {
-        articleId: mongoose.Types.ObjectId(articleId),
+        articleId: new mongoose.Types.ObjectId(articleId),
         isBot: false
       }
     },

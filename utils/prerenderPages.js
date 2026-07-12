@@ -102,7 +102,6 @@ async function buildPrerenderPages(tenantId) {
     Author.find({}).sort({ updatedAt: -1 }).limit(50000),
   ]);
 
-  const langToRegion = buildLangToRegionMap(regions);
   const pages = [];
   const seenPaths = new Set();
 
@@ -251,10 +250,7 @@ async function buildPrerenderPages(tenantId) {
         canonicalUrl: absUrl(siteUrl, pagePath),
         robots: 'index, follow',
         ogType: 'profile',
-        hreflang: Object.entries(langToRegion).map(([l, r]) => ({
-          lang: l,
-          href: absUrl(siteUrl, pathForRegion(r.code, `/author/${slug}`)),
-        })),
+        hreflang: buildStaticHreflang(siteUrl, regions, `/author/${slug}`, includeRegionalVariants),
         bodyParagraphs: author.bio ? [author.bio] : [],
         jsonLd: buildAuthorJsonLd(siteUrl, author, pagePath),
       });
