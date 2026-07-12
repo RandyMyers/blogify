@@ -1,13 +1,14 @@
 /**
  * Backfill per-locale canonical URLs for all articles.
  *
- * Default language: canonical = {siteUrl}/article/{slug} (or /{region}/article/{slug})
- * Other locales with content: canonical = default-language master URL
+ * Default language: canonical = {siteUrl}/article/{slug}
+ * Other locales: canonical = {siteUrl}/{region}/article/{slug} (uses country slug when set)
  *
  * Usage:
  *   node server/scripts/backfillArticleCanonicalUrls.js              # dry run
  *   node server/scripts/backfillArticleCanonicalUrls.js --apply      # write to MongoDB
- *   node server/scripts/backfillArticleCanonicalUrls.js --apply --force  # overwrite existing
+ *   node server/scripts/backfillArticleCanonicalUrls.js --apply --force  # overwrite all canonicals
+ *   node server/scripts/backfillArticleCanonicalUrls.js --apply --fix-wrong  # only fix mismatched/wrong paths
  */
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
@@ -22,11 +23,12 @@ else dotenv.config();
 
 const Article = require('../models/Article');
 const SeoSettings = require('../models/SeoSettings');
-const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
+const { applyCanonicalUrlsToPayload, resolveCanonicalForArticle, LANG_PREFERRED_REGION } = require('../utils/canonicalUrl');
 const { applySeoScoreToDocument } = require('../utils/articleSeoHelpers');
 
 const APPLY = process.argv.includes('--apply');
 const FORCE = process.argv.includes('--force');
+const FIX_WRONG = process.argv.includes('--fix-wrong');
 
 const ARTICLE_LANGS = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
 
@@ -45,6 +47,27 @@ async function getSiteUrl(tenantId) {
   return settings?.siteUrl || process.env.CLIENT_URL || 'https://bloomwik.com';
 }
 
+function normalizeRegionSlugMap(raw) {
+  if (!raw) return {};
+  if (raw instanceof Map) {
+    const obj = {};
+    raw.forEach((value, key) => {
+      const slug = String(value || '').trim().toLowerCase();
+      if (slug) obj[String(key).toUpperCase()] = slug;
+    });
+    return obj;
+  }
+  if (typeof raw === 'object') {
+    const obj = {};
+    Object.entries(raw).forEach(([key, value]) => {
+      const slug = String(value || '').trim().toLowerCase();
+      if (slug) obj[String(key).toUpperCase()] = slug;
+    });
+    return obj;
+  }
+  return {};
+}
+
 function buildPayloadFromArticle(article) {
   const translations = {};
   ARTICLE_LANGS.forEach((lang) => {
@@ -58,8 +81,28 @@ function buildPayloadFromArticle(article) {
     defaultLanguage: article.defaultLanguage || 'en',
     baseSlug: article.baseSlug || article.slug,
     slug: article.baseSlug || article.slug,
+    regionSlugs: normalizeRegionSlugMap(article.regionSlugs),
     translations,
   };
+}
+
+function expectedCanonical(siteUrl, lang, slug, regionSlugs = {}) {
+  const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
+  const explicit = regionSlugs[regionCode];
+  const effectiveSlug = explicit || slug;
+  return resolveCanonicalForArticle({
+    stored: '',
+    siteUrl,
+    regionCode,
+    slug: effectiveSlug,
+  });
+}
+
+function canonicalNeedsFix(current, expected) {
+  const cur = String(current || '').trim();
+  if (!cur) return true;
+  if (!expected) return false;
+  return cur !== expected;
 }
 
 async function backfillArticleCanonicalUrls() {
@@ -69,7 +112,7 @@ async function backfillArticleCanonicalUrls() {
   }
 
   await mongoose.connect(process.env.MONGO_URL);
-  console.log(`MongoDB connected (${APPLY ? 'APPLY' : 'DRY RUN'}${FORCE ? ', FORCE' : ''})\n`);
+  console.log(`MongoDB connected (${APPLY ? 'APPLY' : 'DRY RUN'}${FORCE ? ', FORCE' : ''}${FIX_WRONG ? ', FIX-WRONG' : ''})\n`);
 
   const articles = await Article.find({});
   let updated = 0;
@@ -86,7 +129,7 @@ async function backfillArticleCanonicalUrls() {
       continue;
     }
 
-    if (!FORCE) {
+    if (!FORCE && !FIX_WRONG) {
       Object.keys(payload.translations).forEach((lang) => {
         const current = String(payload.translations[lang].canonicalUrl || '').trim();
         if (current) {
@@ -105,10 +148,20 @@ async function backfillArticleCanonicalUrls() {
 
       const nextCanonical = patched.translations?.[lang]?.canonicalUrl || '';
       const currentCanonical = String(existing.canonicalUrl || '').trim();
+      const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
+      const explicitSlug = payload.regionSlugs[regionCode];
+      const langSlug = existing.slug || payload.baseSlug;
+      const expected = expectedCanonical(siteUrl, lang, langSlug, payload.regionSlugs);
 
       if (!nextCanonical) return;
-      if (!FORCE && currentCanonical) return;
+      if (!FORCE && !FIX_WRONG && currentCanonical) return;
+      if (FIX_WRONG && !FORCE && !canonicalNeedsFix(currentCanonical, expected)) return;
       if (currentCanonical === nextCanonical) return;
+
+      console.log(
+        `  ${lang}: ${currentCanonical || '(empty)'} → ${nextCanonical}` +
+          (explicitSlug && explicitSlug !== langSlug ? ` [country slug: ${explicitSlug}]` : '')
+      );
 
       article.translations[lang].canonicalUrl = nextCanonical;
       articleDirty = true;
@@ -128,10 +181,6 @@ async function backfillArticleCanonicalUrls() {
         console.log(
           `[dry-run] ${article.baseSlug || article._id}: ${articleLocaleUpdates} locale(s) would update`
         );
-        patched.translations &&
-          Object.entries(patched.translations).forEach(([lang, tr]) => {
-            if (tr?.canonicalUrl) console.log(`  ${lang}: ${tr.canonicalUrl}`);
-          });
       }
       updated += 1;
     } else {
