@@ -6,12 +6,11 @@ const { getOrCreateSeoSettings } = require('../utils/seoSettingsStore');
 const { buildTranslationSeo } = require('./translationSeo');
 const {
   STATIC_PAGES,
-  LANG_PREFERRED_REGION,
   pathForRegion,
   absUrl,
   stripHtml,
 } = require('./prerenderMeta');
-const { getSlugForRegion } = require('./regionSlug');
+const { buildArticleHreflangLinks, buildTranslationEntityHreflangLinks, buildArticleHreflangRegions, buildStaticHreflangLinks } = require('./regionSlug');
 
 function getSlugForLang(entity, lang) {
   const tr = entity.translations?.[lang];
@@ -21,26 +20,14 @@ function getSlugForLang(entity, lang) {
   return entity.baseSlug || entity.slug;
 }
 
-function buildLangToRegionMap(regions) {
-  const langToRegion = {};
-  (regions || []).forEach((region) => {
-    const lang = (region.defaultLanguage || 'en').toLowerCase();
-    const code = (region.code || '').toUpperCase();
-    const preferred = LANG_PREFERRED_REGION[lang];
-    if (!langToRegion[lang]) langToRegion[lang] = region;
-    if (preferred && code === preferred) langToRegion[lang] = region;
+function buildStaticHreflang(siteUrl, regions, pagePath, includeRegionalVariants = true) {
+  return buildStaticHreflangLinks(regions, {
+    siteUrl,
+    pagePath,
+    includeRegionalVariants,
+    pathForRegion,
+    absUrlFn: absUrl,
   });
-  return langToRegion;
-}
-
-function buildStaticHreflang(siteUrl, regions, pagePath) {
-  const langToRegion = buildLangToRegionMap(regions);
-  const links = Object.entries(langToRegion).map(([lang, region]) => ({
-    lang,
-    href: absUrl(siteUrl, pathForRegion(region.code, pagePath)),
-  }));
-  links.push({ lang: 'x-default', href: absUrl(siteUrl, pagePath) });
-  return links;
 }
 
 function articleAvailableInRegion(article, regionCode) {
@@ -49,45 +36,6 @@ function articleAvailableInRegion(article, regionCode) {
   const restrictions = article.regionRestrictions || [];
   if (!restrictions.length) return true;
   return restrictions.map((r) => String(r).toUpperCase()).includes(code);
-}
-
-function buildHreflangForEntity(siteUrl, entity, pathBuilder, regions = []) {
-  const source = Array.isArray(regions) && regions.length ? regions : [];
-  const links = [];
-
-  if (source.length) {
-    source
-      .filter((region) => region?.isActive !== false)
-      .forEach((region) => {
-        const slug = getSlugForRegion(entity, region.code);
-        if (!slug) return;
-        const lang = String(region.defaultLanguage || 'en').toLowerCase();
-        links.push({
-          lang,
-          href: absUrl(siteUrl, pathBuilder(region.code, slug)),
-        });
-      });
-  } else {
-    const langs = new Set(Object.keys(entity.translations || {}));
-    if (entity.defaultLanguage) langs.add(entity.defaultLanguage);
-
-    langs.forEach((lang) => {
-      const slug = getSlugForLang(entity, lang);
-      if (!slug) return;
-      const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
-      const path = pathBuilder(regionCode, slug);
-      links.push({ lang, href: absUrl(siteUrl, path) });
-    });
-  }
-
-  const defaultSlug = getSlugForRegion(entity, 'US') || getSlugForLang(entity, entity.defaultLanguage || 'en');
-  if (defaultSlug) {
-    links.push({
-      lang: 'x-default',
-      href: absUrl(siteUrl, pathBuilder('US', defaultSlug)),
-    });
-  }
-  return links;
 }
 
 function buildArticleJsonLd(siteUrl, article, translation, language, pagePath, categoryName, authorName) {
@@ -140,6 +88,7 @@ async function buildPrerenderPages(tenantId) {
   const settings = await getOrCreateSeoSettings(tenantId);
   const siteUrl = settings.siteUrl || process.env.CLIENT_URL || 'https://bloomwik.com';
   const siteName = settings.siteName || 'Bloomwik';
+  const includeRegionalVariants = settings.hreflang?.includeRegionalVariants !== false;
   const tenantFilter = tenantId ? { tenantId } : {};
 
   const [regions, articles, categories, authors] = await Promise.all([
@@ -177,36 +126,38 @@ async function buildPrerenderPages(tenantId) {
         canonicalUrl: absUrl(siteUrl, pagePath),
         robots: 'index, follow',
         ogType: 'website',
-        hreflang: buildStaticHreflang(siteUrl, regions, staticPage.path),
+        hreflang: buildStaticHreflang(siteUrl, regions, staticPage.path, includeRegionalVariants),
       });
     });
   });
 
   articles.forEach((article) => {
-    regions.forEach((region) => {
-      if (!articleAvailableInRegion(article, region.code)) return;
+    const hreflangRegions = buildArticleHreflangRegions(article, regions, includeRegionalVariants);
+    const articleHreflangOpts = {
+      siteUrl,
+      includeRegionalVariants,
+      pathBuilder: (rc, s) => pathForRegion(rc, `/article/${s}`),
+      absUrlFn: absUrl,
+    };
 
-      const lang = (region.defaultLanguage || 'en').toLowerCase();
-      const translation =
-        typeof article.getTranslation === 'function'
-          ? article.getTranslation(lang)
-          : article.translations?.[lang];
+    Object.entries(hreflangRegions).forEach(([regionCode, info]) => {
+      if (!articleAvailableInRegion(article, regionCode)) return;
+
+      const lang = info.language;
+      const translation = article.translations?.[lang];
       if (!translation?.title) return;
 
-      const slug = getSlugForRegion(article, region.code);
-      if (!slug) return;
-
-      const pagePath = pathForRegion(region.code, `/article/${slug}`);
-      const seo = buildTranslationSeo(translation);
+      const slug = info.slug;
+      const pagePath = pathForRegion(regionCode, `/article/${slug}`);
+      const seo = buildTranslationSeo(translation, {
+        siteUrl,
+        regionCode,
+        slug,
+      });
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
 
-      const hreflang = buildHreflangForEntity(
-        siteUrl,
-        article,
-        (rc, s) => pathForRegion(rc, `/article/${s}`),
-        regions
-      );
+      const hreflang = buildArticleHreflangLinks(article, regions, articleHreflangOpts);
 
       const bodyParagraphs = Array.isArray(translation.content)
         ? translation.content.slice(0, 12)
@@ -272,9 +223,12 @@ async function buildPrerenderPages(tenantId) {
         canonicalUrl: absUrl(siteUrl, pagePath),
         robots: 'index, follow',
         ogType: 'website',
-        hreflang: buildHreflangForEntity(siteUrl, category, (rc, s) =>
-          pathForRegion(rc, `/category/${s}`)
-        ),
+        hreflang: buildTranslationEntityHreflangLinks(category, regions, {
+          siteUrl,
+          includeRegionalVariants,
+          pathBuilder: (rc, s) => pathForRegion(rc, `/category/${s}`),
+          absUrlFn: absUrl,
+        }),
         jsonLd: buildCategoryJsonLd(siteUrl, category, translation, pagePath),
       });
     });

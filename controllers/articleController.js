@@ -384,6 +384,8 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
 
   const regions = await Region.find({ isActive: true }).select('code defaultLanguage isActive').lean();
   const regionSlug = getSlugForRegion(article, region);
+  const seoSettings = await getOrCreateSeoSettings(req.tenantId);
+  const siteUrl = seoSettings.siteUrl || process.env.CLIENT_URL || 'https://bloomwik.com';
   
   // Increment views
   await article.incrementViews();
@@ -425,11 +427,15 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
       readTime: article.readTime,
       featured: article.featured,
       trending: article.trending,
-      seo: buildTranslationSeo(activeTranslation),
+      seo: buildTranslationSeo(activeTranslation, {
+        siteUrl,
+        regionCode: region,
+        slug: regionSlug,
+      }),
       language: language,
       offers: serializeOffers(activeTranslation.offers),
       availableTranslations: availableTranslations,
-      availableRegions: buildAvailableRegions(article, regions),
+      availableRegions: buildAvailableRegions(article, regions, seoSettings.hreflang?.includeRegionalVariants !== false),
       isGlobal: article.isGlobal,
       regionRestrictions: article.regionRestrictions
     }

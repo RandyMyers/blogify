@@ -2,7 +2,8 @@ const Article = require('../models/Article');
 const Category = require('../models/Category');
 const Author = require('../models/Author');
 const Region = require('../models/Region');
-const { getSlugForRegion } = require('../utils/regionSlug');
+const { getSlugForRegion, buildArticleHreflangRegions, buildArticleHreflangLinks, buildStaticHreflangLinks } = require('../utils/regionSlug');
+const { pathForRegion, absUrl } = require('../utils/prerenderMeta');
 
 // Base URL from environment or default
 const BASE_URL = process.env.CLIENT_URL || 'https://bloomwik.com';
@@ -83,100 +84,55 @@ const generateSitemapIndex = async (req, res) => {
  */
 const generateMainSitemap = async (req, res) => {
   try {
-    const regions = await Region.find({ isActive: true }).select('code');
+    const regions = await Region.find({ isActive: true }).select('code defaultLanguage isActive').lean();
+
+    const appendStaticUrl = (xml, pagePath, { priority, changefreq }) => {
+      const hrefLinks = buildStaticHreflangLinks(regions, {
+        siteUrl: BASE_URL,
+        pagePath,
+        includeRegionalVariants: true,
+        pathForRegion,
+        absUrlFn: absUrl,
+      });
+
+      const addEntry = (regionCode) => {
+        const loc = absUrl(BASE_URL, pathForRegion(regionCode, pagePath));
+        xml += '  <url>\n';
+        xml += `    <loc>${loc}</loc>\n`;
+        xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
+        xml += `    <changefreq>${changefreq}</changefreq>\n`;
+        xml += `    <priority>${priority}</priority>\n`;
+        hrefLinks.forEach((link) => {
+          xml += `    <xhtml:link rel="alternate" hreflang="${link.lang}" href="${link.href}" />\n`;
+        });
+        xml += '  </url>\n';
+      };
+
+      addEntry('US');
+      regions.forEach((region) => {
+        if (region.code !== 'US') addEntry(region.code);
+      });
+
+      return xml;
+    };
     
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n';
     
-    // Homepage - US/English as default (x-default)
-    xml += '  <url>\n';
-    xml += `    <loc>${BASE_URL}/</loc>\n`;
-    xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-    xml += '    <changefreq>daily</changefreq>\n';
-    xml += '    <priority>1.0</priority>\n';
+    xml = appendStaticUrl(xml, '/', { priority: '1.0', changefreq: 'daily' });
     
-    // Add alternate language links for homepage
-    regions.forEach(region => {
-      const lang = REGION_LANGUAGE_MAP[region.code] || 'en';
-      const regionUrl = region.code === 'US' ? BASE_URL : `${BASE_URL}/${region.code.toLowerCase()}`;
-      xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${regionUrl}/" />\n`;
-    });
-    xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/" />\n`;
-    xml += '  </url>\n';
-    
-    // Regional homepages (excluding US which is the default)
-    regions.forEach(region => {
-      if (region.code !== 'US') {
-        const lang = REGION_LANGUAGE_MAP[region.code] || 'en';
-        const regionCode = region.code.toLowerCase();
-        
-        xml += '  <url>\n';
-        xml += `    <loc>${BASE_URL}/${regionCode}</loc>\n`;
-        xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-        xml += '    <changefreq>daily</changefreq>\n';
-        xml += '    <priority>0.9</priority>\n';
-        
-        // Add alternate language links
-        regions.forEach(r => {
-          const l = REGION_LANGUAGE_MAP[r.code] || 'en';
-          const rUrl = r.code === 'US' ? BASE_URL : `${BASE_URL}/${r.code.toLowerCase()}`;
-          xml += `    <xhtml:link rel="alternate" hreflang="${l}" href="${rUrl}/" />\n`;
-        });
-        xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/" />\n`;
-        xml += '  </url>\n';
-      }
-    });
-    
-    // Static pages (categories, authors, trending, search)
-    // Note: bookmarks, confirm-subscription, 500, and 404 are excluded (they have noindex meta tags)
     const staticPages = [
-      { path: 'categories', priority: '0.8', changefreq: 'weekly' },
-      { path: 'authors', priority: '0.8', changefreq: 'weekly' },
-      { path: 'trending', priority: '0.7', changefreq: 'daily' },
-      { path: 'search', priority: '0.6', changefreq: 'daily' }, // Added search page
-      { path: 'about', priority: '0.6', changefreq: 'monthly' },
-      { path: 'contact', priority: '0.6', changefreq: 'monthly' },
-      { path: 'privacy', priority: '0.5', changefreq: 'yearly' },
-      { path: 'terms', priority: '0.5', changefreq: 'yearly' }
+      { path: '/categories', priority: '0.8', changefreq: 'weekly' },
+      { path: '/authors', priority: '0.8', changefreq: 'weekly' },
+      { path: '/trending', priority: '0.7', changefreq: 'daily' },
+      { path: '/about', priority: '0.6', changefreq: 'monthly' },
+      { path: '/contact', priority: '0.6', changefreq: 'monthly' },
+      { path: '/privacy', priority: '0.5', changefreq: 'yearly' },
+      { path: '/terms', priority: '0.5', changefreq: 'yearly' },
     ];
     
-    staticPages.forEach(page => {
-      // Default (US/English)
-      xml += '  <url>\n';
-      xml += `    <loc>${BASE_URL}/${page.path}</loc>\n`;
-      xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-      xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
-      xml += `    <priority>${page.priority}</priority>\n`;
-      
-      // Add alternate language links
-      regions.forEach(region => {
-        const lang = REGION_LANGUAGE_MAP[region.code] || 'en';
-        const regionUrl = region.code === 'US' ? `${BASE_URL}/${page.path}` : `${BASE_URL}/${region.code.toLowerCase()}/${page.path}`;
-        xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${regionUrl}" />\n`;
-      });
-      xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/${page.path}" />\n`;
-      xml += '  </url>\n';
-      
-      // Regional versions
-      regions.forEach(region => {
-        if (region.code !== 'US') {
-          const regionCode = region.code.toLowerCase();
-          xml += '  <url>\n';
-          xml += `    <loc>${BASE_URL}/${regionCode}/${page.path}</loc>\n`;
-          xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-          xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
-          xml += `    <priority>${page.priority}</priority>\n`;
-          
-          // Add alternate language links
-          regions.forEach(r => {
-            const l = REGION_LANGUAGE_MAP[r.code] || 'en';
-            const rUrl = r.code === 'US' ? `${BASE_URL}/${page.path}` : `${BASE_URL}/${r.code.toLowerCase()}/${page.path}`;
-            xml += `    <xhtml:link rel="alternate" hreflang="${l}" href="${rUrl}" />\n`;
-          });
-          xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/${page.path}" />\n`;
-          xml += '  </url>\n';
-        }
-      });
+    staticPages.forEach((page) => {
+      xml = appendStaticUrl(xml, page.path, page);
     });
     
     xml += '</urlset>';
@@ -203,76 +159,39 @@ const generateArticlesSitemap = async (req, res) => {
     .sort({ updatedAt: -1 })
     .limit(50000); // Google's limit
     
-    const regions = await Region.find({ isActive: true }).select('code');
+    const regions = await Region.find({ isActive: true }).select('code defaultLanguage isActive').lean();
     
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n';
     
+    const articlePathBuilder = (regionCode, slug) => {
+      const code = String(regionCode || 'US').toLowerCase();
+      return regionCode === 'US' ? `/article/${slug}` : `/${code}/article/${slug}`;
+    };
+    const absSitemapUrl = (pathname) => `${BASE_URL}${pathname}`;
+
     articles.forEach(article => {
-      // Determine which regions this article should appear in
-      // If isGlobal is true, include in all regions
-      // If isGlobal is false, only include in regionRestrictions
-      const availableRegions = article.isGlobal === false && article.regionRestrictions && article.regionRestrictions.length > 0
-        ? regions.filter(r => article.regionRestrictions.includes(r.code))
-        : regions; // Include all regions if global or if no restrictions specified
-      
-      // Default URL (US/English) - only include if article is global or US is in available regions
-      const defaultSlug = getSlugForRegion(article, 'US');
-      const usRegion = regions.find(r => r.code === 'US');
-      const shouldIncludeDefault = article.isGlobal || (usRegion && availableRegions.some(r => r.code === 'US'));
-      
-      if (shouldIncludeDefault && defaultSlug) {
-        xml += '  <url>\n';
-        xml += `    <loc>${BASE_URL}/article/${defaultSlug}</loc>\n`;
-        xml += `    <lastmod>${article.updatedAt.toISOString()}</lastmod>\n`;
-        xml += '    <changefreq>weekly</changefreq>\n';
-        xml += '    <priority>0.8</priority>\n';
-        
-        // Add alternate language links for all available translations
-        Object.keys(article.translations).forEach(lang => {
-          const translation = article.translations[lang];
-          if (!translation) return;
-          const region = Object.keys(REGION_LANGUAGE_MAP).find(r => REGION_LANGUAGE_MAP[r] === lang);
-          if (!region) return;
-          const altSlug = getSlugForRegion(article, region);
-          if (!altSlug) return;
-          const regionCode = region.toLowerCase();
-          const articleUrl = region === 'US'
-            ? `${BASE_URL}/article/${altSlug}`
-            : `${BASE_URL}/${regionCode}/article/${altSlug}`;
-          xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${articleUrl}" />\n`;
-        });
-        
-        xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/article/${defaultSlug}" />\n`;
-        xml += '  </url>\n';
-      }
-      
-      availableRegions.forEach(region => {
-        const slug = getSlugForRegion(article, region.code);
-        if (!slug) return;
+      const hreflangRegions = buildArticleHreflangRegions(article, regions, true);
+      const hrefLinks = buildArticleHreflangLinks(article, regions, {
+        siteUrl: BASE_URL,
+        includeRegionalVariants: true,
+        pathBuilder: articlePathBuilder,
+        absUrlFn: (_, pathname) => absSitemapUrl(pathname),
+      });
 
-        const regionCode = region.code.toLowerCase();
-        const isUs = region.code === 'US';
-        if (isUs && shouldIncludeDefault) return;
+      Object.entries(hreflangRegions).forEach(([regionCode, info]) => {
+        const loc = absSitemapUrl(articlePathBuilder(regionCode, info.slug));
 
         xml += '  <url>\n';
-        xml += `    <loc>${isUs ? `${BASE_URL}/article/${slug}` : `${BASE_URL}/${regionCode}/article/${slug}`}</loc>\n`;
+        xml += `    <loc>${loc}</loc>\n`;
         xml += `    <lastmod>${article.updatedAt.toISOString()}</lastmod>\n`;
         xml += '    <changefreq>weekly</changefreq>\n';
         xml += '    <priority>0.8</priority>\n';
 
-        availableRegions.forEach((altRegion) => {
-          const altSlug = getSlugForRegion(article, altRegion.code);
-          if (!altSlug) return;
-          const lang = REGION_LANGUAGE_MAP[altRegion.code] || article.defaultLanguage;
-          const rCode = altRegion.code.toLowerCase();
-          const artUrl = altRegion.code === 'US'
-            ? `${BASE_URL}/article/${altSlug}`
-            : `${BASE_URL}/${rCode}/article/${altSlug}`;
-          xml += `    <xhtml:link rel="alternate" hreflang="${lang}" href="${artUrl}" />\n`;
+        hrefLinks.forEach((link) => {
+          xml += `    <xhtml:link rel="alternate" hreflang="${link.lang}" href="${link.href}" />\n`;
         });
 
-        xml += `    <xhtml:link rel="alternate" hreflang="x-default" href="${BASE_URL}/article/${defaultSlug}" />\n`;
         xml += '  </url>\n';
       });
     });

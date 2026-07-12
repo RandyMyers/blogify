@@ -35,6 +35,45 @@ function buildArticleCanonicalUrl(siteUrl, lang, slug, defaultLanguage = 'en') {
   return `${base}${buildArticlePath(lang, slug, defaultLanguage)}`;
 }
 
+function buildArticleCanonicalUrlForRegion(siteUrl, regionCode, slug) {
+  const base = normalizeSiteUrl(siteUrl);
+  const code = String(regionCode || 'US').toUpperCase();
+  const encoded = encodeURIComponent(String(slug || '').trim());
+  if (!encoded) return '';
+  const path = code === 'US' ? `/article/${encoded}` : `/${code.toLowerCase()}/article/${encoded}`;
+  return `${base}${path}`;
+}
+
+/**
+ * Prefer a computed article URL when a stored canonical is on our site but missing /article/.
+ */
+function resolveCanonicalForArticle({ stored, siteUrl, regionCode = 'US', slug }) {
+  const computed = buildArticleCanonicalUrlForRegion(siteUrl, regionCode, slug);
+  if (!computed) return String(stored || '').trim();
+
+  const trimmed = String(stored || '').trim();
+  if (!trimmed) return computed;
+
+  try {
+    const storedUrl = new URL(trimmed);
+    const computedUrl = new URL(computed);
+    if (
+      storedUrl.origin === computedUrl.origin &&
+      !storedUrl.pathname.includes('/article/')
+    ) {
+      return computed;
+    }
+  } catch {
+    return computed;
+  }
+
+  return trimmed;
+}
+
+function normalizeManualCanonical(stored, siteUrl, regionCode, slug) {
+  return resolveCanonicalForArticle({ stored, siteUrl, regionCode, slug });
+}
+
 /**
  * Resolve canonical for a translation. Non-default locales default to the
  * default-language master URL unless manually overridden.
@@ -48,7 +87,9 @@ function resolveTranslationCanonical({
   manualCanonical,
 }) {
   const trimmed = String(manualCanonical || '').trim();
-  if (trimmed) return trimmed;
+  if (trimmed) {
+    return normalizeManualCanonical(trimmed, siteUrl, LANG_PREFERRED_REGION[defLang] || 'US', masterSlug);
+  }
 
   const defLang = defaultLanguage || 'en';
   const masterSlug = defaultSlug || slug;
@@ -92,6 +133,9 @@ module.exports = {
   LANG_PREFERRED_REGION,
   buildArticlePath,
   buildArticleCanonicalUrl,
+  buildArticleCanonicalUrlForRegion,
+  resolveCanonicalForArticle,
+  normalizeManualCanonical,
   resolveTranslationCanonical,
   applyCanonicalUrlsToPayload,
 };
