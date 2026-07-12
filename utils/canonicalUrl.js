@@ -57,10 +57,13 @@ function resolveCanonicalForArticle({ stored, siteUrl, regionCode = 'US', slug }
   try {
     const storedUrl = new URL(trimmed);
     const computedUrl = new URL(computed);
-    if (
-      storedUrl.origin === computedUrl.origin &&
-      !storedUrl.pathname.includes('/article/')
-    ) {
+    if (storedUrl.origin !== computedUrl.origin) {
+      return trimmed;
+    }
+    if (!storedUrl.pathname.includes('/article/')) {
+      return computed;
+    }
+    if (storedUrl.pathname !== computedUrl.pathname) {
       return computed;
     }
   } catch {
@@ -89,14 +92,10 @@ function resolveTranslationCanonical({
   const defLang = defaultLanguage || 'en';
   const masterSlug = defaultSlug || slug;
   const trimmed = String(manualCanonical || '').trim();
+  const regionForLang = LANG_PREFERRED_REGION[lang] || LANG_PREFERRED_REGION[defLang] || 'US';
 
   if (trimmed) {
-    return normalizeManualCanonical(
-      trimmed,
-      siteUrl,
-      LANG_PREFERRED_REGION[defLang] || 'US',
-      masterSlug
-    );
+    return normalizeManualCanonical(trimmed, siteUrl, regionForLang, slug);
   }
 
   if (String(lang).toLowerCase() === String(defLang).toLowerCase()) {
@@ -117,10 +116,14 @@ function applyCanonicalUrlsToPayload(payload, siteUrl) {
   if (!defaultSlug || !payload.translations) return payload;
 
   const base = normalizeSiteUrl(siteUrl);
+  const regionSlugMap = payload.regionSlugs || {};
+
   Object.keys(payload.translations).forEach((lang) => {
     const t = payload.translations[lang];
     if (!t?.title?.trim()) return;
-    const slug = t.slug || defaultSlug;
+    const regionCode = LANG_PREFERRED_REGION[lang] || 'US';
+    const explicitRegionSlug = regionSlugMap[regionCode] || regionSlugMap[String(regionCode).toUpperCase()];
+    const slug = explicitRegionSlug || t.slug || defaultSlug;
     t.canonicalUrl = resolveTranslationCanonical({
       lang,
       slug,
