@@ -5,6 +5,7 @@ const {
   SEO_SETTINGS_DEFAULTS: DEFAULTS,
   getOrCreateSeoSettings: getOrCreateSettings,
   toPublicSeoSettings,
+  normalizeSiteVerificationToken,
 } = require('../utils/seoSettingsStore');
 
 /**
@@ -55,8 +56,12 @@ exports.updateSeoSettings = asyncHandler(async (req, res) => {
   if (body.siteName !== undefined) doc.siteName = body.siteName;
   if (body.siteUrl !== undefined) doc.siteUrl = String(body.siteUrl).replace(/\/$/, '');
   if (body.twitterHandle !== undefined) doc.twitterHandle = body.twitterHandle;
-  if (body.googleSiteVerification !== undefined) doc.googleSiteVerification = body.googleSiteVerification;
-  if (body.bingSiteVerification !== undefined) doc.bingSiteVerification = body.bingSiteVerification;
+  if (body.googleSiteVerification !== undefined) {
+    doc.googleSiteVerification = normalizeSiteVerificationToken(body.googleSiteVerification);
+  }
+  if (body.bingSiteVerification !== undefined) {
+    doc.bingSiteVerification = normalizeSiteVerificationToken(body.bingSiteVerification);
+  }
 
   if (body.sitemap && typeof body.sitemap === 'object') {
     Object.assign(doc.sitemap, body.sitemap);

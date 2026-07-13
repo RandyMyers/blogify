@@ -1,5 +1,23 @@
 const SeoSettings = require('../models/SeoSettings');
 
+/**
+ * Accept bare token, meta tag HTML, or google-site-verification=TOKEN paste.
+ */
+function normalizeSiteVerificationToken(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+
+  const metaContent = value.match(/content\s*=\s*["']([^"']+)["']/i);
+  if (metaContent?.[1]) return metaContent[1].trim();
+
+  const eqForm = value.match(/google-site-verification\s*=\s*([^\s"'<>]+)/i);
+  if (eqForm?.[1]) return eqForm[1].trim();
+
+  if (!/[<>]/.test(value)) return value;
+
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
 const DEFAULTS = {
   siteName: 'Bloomwik',
   siteUrl: process.env.CLIENT_URL || 'https://bloomwik.com',
@@ -63,8 +81,8 @@ function toPublicSeoSettings(doc) {
     siteName: obj.siteName,
     siteUrl: obj.siteUrl,
     twitterHandle: obj.twitterHandle,
-    googleSiteVerification: obj.googleSiteVerification,
-    bingSiteVerification: obj.bingSiteVerification,
+    googleSiteVerification: normalizeSiteVerificationToken(obj.googleSiteVerification),
+    bingSiteVerification: normalizeSiteVerificationToken(obj.bingSiteVerification),
     sitemap: { ...DEFAULTS.sitemap, ...obj.sitemap },
     indexNow: { ...DEFAULTS.indexNow, ...obj.indexNow },
     searchConsole: { ...DEFAULTS.searchConsole, ...obj.searchConsole },
@@ -79,4 +97,5 @@ module.exports = {
   SEO_SETTINGS_DEFAULTS: DEFAULTS,
   getOrCreateSeoSettings,
   toPublicSeoSettings,
+  normalizeSiteVerificationToken,
 };
