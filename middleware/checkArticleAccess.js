@@ -2,6 +2,7 @@ const Article = require('../models/Article');
 const { asyncHandler } = require('./errorHandler');
 const { isObjectIdString } = require('../utils/objectIdUtils');
 const { getSlugForRegion } = require('../utils/regionSlug');
+const { REGION_CODES } = require('../constants/regions');
 
 const AUTHOR_POPULATE = {
   path: 'author',
@@ -60,7 +61,7 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
   }
 
   if (!article) {
-    const regionCodes = ['US', 'GB', 'CA', 'AU', 'IE', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'LU', 'CH', 'AT'];
+    const regionCodes = REGION_CODES;
     for (const code of regionCodes) {
       article = await Article.findOne({
         ...tenantClause,

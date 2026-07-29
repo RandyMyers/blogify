@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { REGION_CODES } = require('../constants/regions');
 
 // Translation schema for ad content (multilingual)
 const adTranslationSchema = new mongoose.Schema({
@@ -78,7 +79,7 @@ const adSchema = new mongoose.Schema({
     type: String,
     uppercase: true,
     enum: {
-      values: ['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'],
+      values: REGION_CODES,
       message: 'Invalid region code'
     }
   }],

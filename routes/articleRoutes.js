@@ -26,10 +26,10 @@ const { validateArticlePublishSeo } = require('../middleware/validateArticlePubl
 router.use(detectRegion);
 
 // Public routes
-router.get('/top', getAllArticles); // Use getAllArticles with featured/trending filters
-router.get('/popular', getAllArticles);
-router.get('/trending', getAllArticles);
-router.get('/featured', getAllArticles);
+router.get('/top', getTopArticles);
+router.get('/popular', getPopularArticles);
+router.get('/trending', getTrendingArticles);
+router.get('/featured', getFeaturedArticle);
 router.post('/offers/click', trackOfferClick);
 // Track view (must be before /:slug route to avoid route conflict)
 router.post('/:slug/view', trackView);

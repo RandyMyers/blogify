@@ -1,28 +1,7 @@
 const { LANG_PREFERRED_REGION } = require('./canonicalUrl');
+const { DEFAULT_REGION_LANGUAGES, REGION_CODES } = require('../constants/regions');
 
 const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
-
-const DEFAULT_REGION_LANGUAGES = {
-  US: 'en',
-  GB: 'en',
-  CA: 'en',
-  AU: 'en',
-  IE: 'en',
-  FR: 'fr',
-  DE: 'de',
-  ES: 'es',
-  IT: 'it',
-  PT: 'pt',
-  SE: 'sv',
-  NO: 'no',
-  DK: 'da',
-  FI: 'fi',
-  BE: 'nl',
-  NL: 'nl',
-  LU: 'fr',
-  CH: 'de',
-  AT: 'de',
-};
 
 function normalizeRegionCode(regionCode) {
   return String(regionCode || 'US').toUpperCase();

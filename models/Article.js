@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const generateSlug = require('../utils/generateSlug');
 const calculateReadTime = require('../utils/calculateReadTime');
+const { REGION_CODES } = require('../constants/regions');
 
 const articleOfferSchema = new mongoose.Schema({
   imageUrl: { type: String, trim: true, default: '' },
@@ -62,7 +63,7 @@ const articleSchema = new mongoose.Schema({
   regionRestrictions: [{
     type: String,
     uppercase: true,
-    enum: ['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT']
+    enum: REGION_CODES
   }],
   // Per-country URL slugs (e.g. US vs AU can differ while sharing English content).
   regionSlugs: {

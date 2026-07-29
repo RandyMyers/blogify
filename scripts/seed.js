@@ -374,33 +374,21 @@ const seedDatabase = async () => {
     // Seed regions first (if not already seeded)
     console.log('Checking regions...');
     const regionCount = await Region.countDocuments();
+    const { REGIONS } = require('../constants/regions');
     if (regionCount === 0) {
       console.log('Seeding regions...');
-      const regions = [
-        { code: 'US', name: 'United States', languages: ['en'], defaultLanguage: 'en', currency: 'USD', isActive: true },
-        { code: 'GB', name: 'United Kingdom', languages: ['en'], defaultLanguage: 'en', currency: 'GBP', isActive: true },
-        { code: 'CA', name: 'Canada', languages: ['en', 'fr'], defaultLanguage: 'en', currency: 'CAD', isActive: true },
-        { code: 'AU', name: 'Australia', languages: ['en'], defaultLanguage: 'en', currency: 'AUD', isActive: true },
-        { code: 'FR', name: 'France', languages: ['fr', 'en'], defaultLanguage: 'fr', currency: 'EUR', isActive: true },
-        { code: 'DE', name: 'Germany', languages: ['de', 'en'], defaultLanguage: 'de', currency: 'EUR', isActive: true },
-        { code: 'ES', name: 'Spain', languages: ['es', 'en'], defaultLanguage: 'es', currency: 'EUR', isActive: true },
-        { code: 'IT', name: 'Italy', languages: ['it', 'en'], defaultLanguage: 'it', currency: 'EUR', isActive: true },
-        { code: 'PT', name: 'Portugal', languages: ['pt', 'en'], defaultLanguage: 'pt', currency: 'EUR', isActive: true },
-        { code: 'SE', name: 'Sweden', languages: ['sv', 'en'], defaultLanguage: 'sv', currency: 'SEK', isActive: true },
-        { code: 'NO', name: 'Norway', languages: ['no', 'en'], defaultLanguage: 'no', currency: 'NOK', isActive: true },
-        { code: 'DK', name: 'Denmark', languages: ['da', 'en'], defaultLanguage: 'da', currency: 'DKK', isActive: true },
-        { code: 'FI', name: 'Finland', languages: ['fi', 'sv', 'en'], defaultLanguage: 'fi', currency: 'EUR', isActive: true },
-        { code: 'BE', name: 'Belgium', languages: ['nl', 'fr', 'de', 'en'], defaultLanguage: 'nl', currency: 'EUR', isActive: true },
-        { code: 'NL', name: 'Netherlands', languages: ['nl', 'en'], defaultLanguage: 'nl', currency: 'EUR', isActive: true },
-        { code: 'IE', name: 'Ireland', languages: ['en'], defaultLanguage: 'en', currency: 'EUR', isActive: true },
-        { code: 'LU', name: 'Luxembourg', languages: ['fr', 'de', 'en'], defaultLanguage: 'fr', currency: 'EUR', isActive: true },
-        { code: 'CH', name: 'Switzerland', languages: ['de', 'fr', 'it', 'en'], defaultLanguage: 'de', currency: 'CHF', isActive: true },
-        { code: 'AT', name: 'Austria', languages: ['de', 'en'], defaultLanguage: 'de', currency: 'EUR', isActive: true }
-      ];
-      await Region.insertMany(regions);
-      console.log(`✓ Created ${regions.length} regions`);
+      await Region.insertMany(REGIONS);
+      console.log(`✓ Created ${REGIONS.length} regions`);
     } else {
       console.log(`✓ Regions already exist (${regionCount} regions)`);
+      for (const region of REGIONS) {
+        await Region.findOneAndUpdate(
+          { code: region.code },
+          { ...region, updatedAt: new Date() },
+          { upsert: true, setDefaultsOnInsert: true }
+        );
+      }
+      console.log(`✓ Upserted ${REGIONS.length} regions from catalog (includes any new markets like JM)`);
     }
 
     // Ensure default tenant exists

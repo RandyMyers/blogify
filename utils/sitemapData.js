@@ -26,20 +26,20 @@ async function buildSitemapData(tenantId) {
   const [articles, categories, authors, regions] = await Promise.all([
     flags.enabled && flags.includeArticles
       ? Article.find({ published: true, ...tenantFilter })
-          .select('baseSlug defaultLanguage translations updatedAt publishedAt regionRestrictions isGlobal')
+          .select('baseSlug defaultLanguage translations regionSlugs updatedAt publishedAt regionRestrictions isGlobal')
           .sort({ updatedAt: -1 })
           .limit(50000)
           .lean()
       : [],
     flags.enabled && flags.includeCategories
-      ? Category.find({})
+      ? Category.find({ ...tenantFilter })
           .select('baseSlug defaultLanguage translations updatedAt')
           .sort({ updatedAt: -1 })
           .limit(50000)
           .lean()
       : [],
     flags.enabled && flags.includeAuthors
-      ? Author.find({})
+      ? Author.find({ ...tenantFilter })
           .select('baseSlug defaultLanguage translations updatedAt')
           .sort({ updatedAt: -1 })
           .limit(50000)

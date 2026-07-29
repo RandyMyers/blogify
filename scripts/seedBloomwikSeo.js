@@ -28,7 +28,7 @@ const BLOOMWIK_SEO = {
   siteName: 'Bloomwik',
   siteUrl: 'https://bloomwik.com',
   twitterHandle: '@bloomwik',
-  googleSiteVerification: '',
+  googleSiteVerification: 'YjjvXdfi1-mUhKyxCq5GTTLt6ZCHB3stFH2CUWLmc64',
   bingSiteVerification: '',
   sitemap: {
     enabled: true,
@@ -75,6 +75,7 @@ async function main() {
 
   console.log(`SEO settings saved for tenant "${tenant.name}" (${tenant.slug})`);
   console.log(`  Site URL:     ${settings.siteUrl}`);
+  console.log(`  Google GSC:   ${settings.googleSiteVerification ? '(set)' : '(empty)'}`);
   console.log(`  Sitemap:      ${settings.sitemap.enabled ? 'enabled' : 'disabled'}`);
   console.log(`  IndexNow:     ${settings.indexNow.enabled ? 'enabled' : 'disabled'}`);
   console.log(`  IndexNow key: ${settings.indexNow.apiKey ? '(set)' : '(empty — use INDEXNOW_API_KEY env)'}`);

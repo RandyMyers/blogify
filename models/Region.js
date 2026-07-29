@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { REGION_CODES } = require('../constants/regions');
 
 const regionSchema = new mongoose.Schema({
   code: {
@@ -6,7 +7,7 @@ const regionSchema = new mongoose.Schema({
     required: true,
     unique: true,
     uppercase: true,
-    enum: ['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'],
+    enum: REGION_CODES,
     index: true
   },
   name: {

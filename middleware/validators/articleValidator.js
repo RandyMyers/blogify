@@ -1,6 +1,7 @@
 const { body, param, query, validationResult } = require('express-validator');
 const { asyncHandler } = require('../errorHandler');
 const mongoose = require('mongoose');
+const { REGION_CODES } = require('../../constants/regions');
 
 // Supported languages
 const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
@@ -139,7 +140,7 @@ exports.validateCreateArticle = [
     .withMessage('regionRestrictions must be an array'),
   body('regionRestrictions.*')
     .optional()
-    .isIn(['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'])
+    .isIn(REGION_CODES)
     .withMessage('Invalid region code'),
   body('regionSlugs')
     .optional()
@@ -329,7 +330,7 @@ exports.validateUpdateArticle = [
     .withMessage('regionRestrictions must be an array'),
   body('regionRestrictions.*')
     .optional()
-    .isIn(['US', 'GB', 'CA', 'AU', 'FR', 'DE', 'ES', 'IT', 'PT', 'SE', 'NO', 'DK', 'FI', 'BE', 'NL', 'IE', 'LU', 'CH', 'AT'])
+    .isIn(REGION_CODES)
     .withMessage('Invalid region code'),
   body('regionSlugs')
     .optional()

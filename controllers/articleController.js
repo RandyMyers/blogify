@@ -579,6 +579,7 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
     ...scopedFilter(req),
     published: true,
     publishedAt: { $gte: thirtyDaysAgo },
+    views: { $gt: 0 },
   })
     .sort({ views: -1, likes: -1, publishedAt: -1 })
     .limit(limit)

@@ -1,53 +1,53 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const Region = require('../models/Region');
+const { REGIONS } = require('../constants/regions');
 
 dotenv.config();
 
-const regions = [
-  { code: 'US', name: 'United States', languages: ['en'], defaultLanguage: 'en', currency: 'USD' },
-  { code: 'GB', name: 'United Kingdom', languages: ['en'], defaultLanguage: 'en', currency: 'GBP' },
-  { code: 'CA', name: 'Canada', languages: ['en', 'fr'], defaultLanguage: 'en', currency: 'CAD' },
-  { code: 'AU', name: 'Australia', languages: ['en'], defaultLanguage: 'en', currency: 'AUD' },
-  { code: 'FR', name: 'France', languages: ['fr', 'en'], defaultLanguage: 'fr', currency: 'EUR' },
-  { code: 'DE', name: 'Germany', languages: ['de', 'en'], defaultLanguage: 'de', currency: 'EUR' },
-  { code: 'ES', name: 'Spain', languages: ['es', 'en'], defaultLanguage: 'es', currency: 'EUR' },
-  { code: 'IT', name: 'Italy', languages: ['it', 'en'], defaultLanguage: 'it', currency: 'EUR' },
-  { code: 'PT', name: 'Portugal', languages: ['pt', 'en'], defaultLanguage: 'pt', currency: 'EUR' },
-  { code: 'SE', name: 'Sweden', languages: ['sv', 'en'], defaultLanguage: 'sv', currency: 'SEK' },
-  { code: 'NO', name: 'Norway', languages: ['no', 'en'], defaultLanguage: 'no', currency: 'NOK' },
-  { code: 'DK', name: 'Denmark', languages: ['da', 'en'], defaultLanguage: 'da', currency: 'DKK' },
-  { code: 'FI', name: 'Finland', languages: ['fi', 'sv', 'en'], defaultLanguage: 'fi', currency: 'EUR' },
-  { code: 'BE', name: 'Belgium', languages: ['nl', 'fr', 'de', 'en'], defaultLanguage: 'nl', currency: 'EUR' },
-  { code: 'NL', name: 'Netherlands', languages: ['nl', 'en'], defaultLanguage: 'nl', currency: 'EUR' },
-  { code: 'IE', name: 'Ireland', languages: ['en'], defaultLanguage: 'en', currency: 'EUR' },
-  { code: 'LU', name: 'Luxembourg', languages: ['fr', 'de', 'en'], defaultLanguage: 'fr', currency: 'EUR' },
-  { code: 'CH', name: 'Switzerland', languages: ['de', 'fr', 'it', 'en'], defaultLanguage: 'de', currency: 'CHF' },
-  { code: 'AT', name: 'Austria', languages: ['de', 'en'], defaultLanguage: 'de', currency: 'EUR' }
-];
+/**
+ * Upsert all regions from server/data/regions.json (safe for production — does not delete existing).
+ *
+ * Usage:
+ *   npm run seed:regions
+ *   node scripts/seedRegions.js --fresh   # wipe and re-insert (dev only)
+ */
+async function seedRegions() {
+  const fresh = process.argv.includes('--fresh');
 
-const seedRegions = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URL, {
       useNewUrlParser: true,
-      useUnifiedTopology: true
+      useUnifiedTopology: true,
     });
     console.log('Connected to MongoDB');
 
-    // Clear existing regions
-    await Region.deleteMany({});
-    console.log('Cleared existing regions');
+    if (fresh) {
+      await Region.deleteMany({});
+      console.log('Cleared existing regions (--fresh)');
+      const insertedRegions = await Region.insertMany(REGIONS);
+      console.log(`Seeded ${insertedRegions.length} regions successfully`);
+      process.exit(0);
+      return;
+    }
 
-    // Insert regions
-    const insertedRegions = await Region.insertMany(regions);
-    console.log(`Seeded ${insertedRegions.length} regions successfully`);
+    let upserted = 0;
+    for (const region of REGIONS) {
+      await Region.findOneAndUpdate(
+        { code: region.code },
+        { ...region, updatedAt: new Date() },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      upserted += 1;
+      console.log(`  ✓ ${region.code} — ${region.name}`);
+    }
 
+    console.log(`Upserted ${upserted} regions from server/data/regions.json`);
     process.exit(0);
   } catch (error) {
     console.error('Error seeding regions:', error);
     process.exit(1);
   }
-};
+}
 
 seedRegions();
-

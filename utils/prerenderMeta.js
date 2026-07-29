@@ -157,11 +157,11 @@ function renderCrawlerBody(page) {
     .join('\n');
 
   return `
-    <div id="prerender-crawler-content" aria-hidden="true" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">
+    <article id="prerender-static-content" class="prerender-static-content">
       <h1>${escapeHtml(title)}</h1>
       ${intro ? `<p>${escapeHtml(intro)}</p>` : ''}
 ${paras}
-    </div>`;
+    </article>`;
 }
 
 function injectPrerenderIntoTemplate(templateHtml, page, siteSettings) {
@@ -180,7 +180,7 @@ function injectPrerenderIntoTemplate(templateHtml, page, siteSettings) {
   if (crawlerBody) {
     html = html.replace(
       /<div id="root"><\/div>/i,
-      `<div id="root">${crawlerBody}</div>`
+      `${crawlerBody}\n    <div id="root"></div>`
     );
   }
 
