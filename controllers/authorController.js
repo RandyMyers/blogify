@@ -1,5 +1,6 @@
 const Author = require('../models/Author');
 const Article = require('../models/Article');
+const Category = require('../models/Category');
 const { scopedFilter } = require('../utils/tenantScope');
 const { asyncHandler } = require('../middleware/errorHandler');
 
@@ -21,6 +22,7 @@ const formatAuthorPublic = (author, language) => {
     customLinks: (author.customLinks || []).filter((link) => link?.url),
     articleCount: author.articleCount,
     totalViews: author.totalViews,
+    createdAt: author.createdAt,
     language,
     seo: {
       metaTitle: author.metaTitle || '',
@@ -168,6 +170,8 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const { slug } = req.params;
   const language = (req.query.lang || req.language || 'en').toLowerCase();
   const region = req.region || req.query.region || 'US';
+  const sortMode = String(req.query.sort || 'newest').toLowerCase();
+  const categorySlug = String(req.query.category || '').trim().toLowerCase();
   
   // Find author by slug
   const slugOr = [
@@ -210,9 +214,29 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   } else {
     query.isGlobal = true;
   }
+
+  // Optional category filter
+  let categoryFilter = null;
+  if (categorySlug) {
+    categoryFilter = await Category.findOne({
+      $or: [
+        { [`translations.${language}.slug`]: categorySlug },
+        { baseSlug: categorySlug },
+        { slug: categorySlug },
+      ],
+    }).select('_id name slug color baseSlug translations');
+    if (categoryFilter) {
+      query.category = categoryFilter._id;
+    }
+  }
+
+  const sort =
+    sortMode === 'popular'
+      ? { views: -1, publishedAt: -1 }
+      : { publishedAt: -1 };
   
   const articles = await Article.find(query)
-    .sort({ publishedAt: -1 })
+    .sort(sort)
     .skip(skip)
     .limit(limit)
     .populate('category', 'name slug color')
@@ -224,14 +248,55 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
 
   const total = await Article.countDocuments(query);
 
+  // Distinct categories this author has written in (for filter chips)
+  const baseCategoryQuery = {
+    author: author._id,
+    published: true,
+    ...scopedFilter(req),
+  };
+  if (region) {
+    baseCategoryQuery.$or = [
+      { isGlobal: true },
+      { regionRestrictions: region },
+    ];
+  } else {
+    baseCategoryQuery.isGlobal = true;
+  }
+  const categoryIds = await Article.distinct('category', baseCategoryQuery);
+  const categories = await Category.find({ _id: { $in: categoryIds } })
+    .select('name slug color baseSlug translations defaultLanguage')
+    .sort({ name: 1 });
+
+  const filterCategories = categories.map((cat) => {
+    const tr = cat.translations?.[language] || cat.translations?.[cat.defaultLanguage];
+    return {
+      _id: cat._id,
+      name: tr?.name || cat.name,
+      slug: tr?.slug || cat.slug || cat.baseSlug,
+      color: cat.color,
+    };
+  }).filter((c) => c.slug);
+
   res.json({
     success: true,
     count: transformedArticles.length,
     total,
     page,
-    pages: Math.ceil(total / limit),
+    pages: Math.ceil(total / limit) || 0,
+    limit,
     language,
     region,
+    sort: sortMode === 'popular' ? 'popular' : 'newest',
+    category: categoryFilter
+      ? {
+          _id: categoryFilter._id,
+          name: categoryFilter.name,
+          slug: categoryFilter.slug || categoryFilter.baseSlug,
+        }
+      : null,
+    filters: {
+      categories: filterCategories,
+    },
     author: formatAuthorPublic(author, language),
     data: transformedArticles,
   });
