@@ -33,6 +33,12 @@ const translationSchema = new mongoose.Schema({
   twitterTitle: { type: String, maxlength: 70, trim: true, default: '' },
   twitterDescription: { type: String, maxlength: 200, trim: true, default: '' },
   offers: { type: [articleOfferSchema], default: [] },
+  // Locale-specific translator / local author (falls back to article.author)
+  author: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Author',
+    default: null,
+  },
 }, { _id: false });
 
 const articleSchema = new mongoose.Schema({

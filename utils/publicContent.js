@@ -16,6 +16,47 @@ const formatPopulatedAuthor = (author, language) => {
   };
 };
 
+const getTranslationAuthorId = (translation) => {
+  if (!translation?.author) return null;
+  return String(translation.author._id || translation.author);
+};
+
+/**
+ * Prefer locale translation author when set; otherwise article-level author.
+ */
+const resolveArticleAuthor = (article, language, authorMap = {}) => {
+  const translation =
+    (typeof article.getTranslation === 'function'
+      ? article.getTranslation(language)
+      : article.translations?.[language]) || null;
+  const trAuthorId = getTranslationAuthorId(translation);
+  if (trAuthorId) {
+    if (translation.author?.name) {
+      return formatPopulatedAuthor(translation.author, language);
+    }
+    if (authorMap[trAuthorId]) {
+      return formatPopulatedAuthor(authorMap[trAuthorId], language);
+    }
+  }
+  return formatPopulatedAuthor(article.author, language);
+};
+
+const collectTranslationAuthorIds = (articles) => {
+  const list = Array.isArray(articles) ? articles : [articles];
+  const ids = new Set();
+  list.forEach((article) => {
+    if (!article) return;
+    let trs = article.translations;
+    if (!trs) return;
+    if (typeof trs.toObject === 'function') trs = trs.toObject();
+    Object.values(trs).forEach((tr) => {
+      const id = getTranslationAuthorId(tr);
+      if (id) ids.add(id);
+    });
+  });
+  return [...ids];
+};
+
 const formatPopulatedCategory = (category, language) => {
   if (!category) return null;
   if (typeof category === 'string') return null;
@@ -40,7 +81,7 @@ const formatPopulatedCategory = (category, language) => {
   };
 };
 
-const transformArticleForPublic = (article, language) => {
+const transformArticleForPublic = (article, language, authorMap = {}) => {
   const translation = article.getTranslation(language);
   const defaultTranslation = article.getTranslation(article.defaultLanguage);
   const activeTranslation = translation || defaultTranslation;
@@ -59,7 +100,7 @@ const transformArticleForPublic = (article, language) => {
     imageUrl: article.imageUrl,
     imageAlt: article.imageAlt || '',
     category: formatPopulatedCategory(article.category, language),
-    author: formatPopulatedAuthor(article.author, language),
+    author: resolveArticleAuthor(article, language, authorMap),
     tags: article.tags,
     publishedAt: article.publishedAt,
     views: article.views,
@@ -76,4 +117,7 @@ module.exports = {
   formatPopulatedAuthor,
   formatPopulatedCategory,
   transformArticleForPublic,
+  resolveArticleAuthor,
+  collectTranslationAuthorIds,
+  getTranslationAuthorId,
 };

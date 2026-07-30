@@ -154,10 +154,14 @@ authorSchema.pre('save', function(next) {
 // Method to update article count
 authorSchema.methods.updateArticleCount = async function() {
   const Article = mongoose.model('Article');
+  const langs = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
   const count = await Article.countDocuments({
-    author: this._id,
     published: true,
-    ...(this.tenantId ? { tenantId: this.tenantId } : {})
+    ...(this.tenantId ? { tenantId: this.tenantId } : {}),
+    $or: [
+      { author: this._id },
+      ...langs.map((lang) => ({ [`translations.${lang}.author`]: this._id })),
+    ],
   });
   this.articleCount = count;
   await this.save();

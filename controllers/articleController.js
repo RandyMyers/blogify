@@ -15,6 +15,14 @@ const {
 } = require('../utils/regionSlug');
 
 const FOLLOW_BLOCKLIST = new Set(['nofollow', 'ugc', 'sponsored']);
+const mongoose = require('mongoose');
+
+const normalizeTranslationAuthorId = (value) => {
+  if (!value) return null;
+  const id = String(value._id || value).trim();
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
+  return id;
+};
 
 const enforceFollowLinks = (html = '') => {
   if (typeof html !== 'string' || !html) return html;
@@ -65,12 +73,13 @@ const normalizeTranslationsForLinks = (translations) => {
       ...translation,
       content: normalizeContentParagraphs(translation.content),
       offers,
+      author: normalizeTranslationAuthorId(translation.author),
     };
   });
   return normalized;
 };
 
-const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic } = require('../utils/publicContent');
+const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
 const { getOrCreateSeoSettings } = require('./seoSettingsController');
 const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
@@ -78,6 +87,16 @@ const {
   analyzeArticlePayload,
   applySeoScoreToDocument,
 } = require('../utils/articleSeoHelpers');
+
+const loadTranslationAuthorMap = async (articles) => {
+  const ids = collectTranslationAuthorIds(articles);
+  if (!ids.length) return {};
+  const authors = await Author.find({ _id: { $in: ids } }).select(
+    'name slug avatar baseSlug defaultLanguage translations'
+  );
+  return Object.fromEntries(authors.map((a) => [String(a._id), a]));
+};
+
 const { buildTranslationSeo } = require('../utils/translationSeo');
 
 function serializeOffers(offers = []) {
@@ -95,8 +114,8 @@ function serializeOffers(offers = []) {
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
 
-const transformArticleForPublic = (article, language) => {
-  const base = transformArticlePublic(article, language);
+const transformArticleForPublic = (article, language, authorMap = {}) => {
+  const base = transformArticlePublic(article, language, authorMap);
   if (!base) return null;
   const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
   return {
@@ -197,8 +216,9 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
+  const authorMap = await loadTranslationAuthorMap(articles);
   const transformedArticles = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter((article) => article !== null);
   
   const total = await Article.countDocuments(query);
@@ -391,7 +411,8 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
   await article.incrementViews();
   
   // Get formatted author & category (populated in checkArticleAccess)
-  const authorData = formatPopulatedAuthor(article.author, language);
+  const authorMap = await loadTranslationAuthorMap(article);
+  const authorData = resolveArticleAuthor(article, language, authorMap);
   const categoryData = formatPopulatedCategory(article.category, language);
   
   // Build available translations object
@@ -553,8 +574,9 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
+  const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter(Boolean);
 
   res.json({
@@ -586,8 +608,9 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
+  const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter(Boolean);
 
   res.json({
@@ -616,8 +639,9 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
+  const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter(Boolean);
 
   res.json({
@@ -646,8 +670,9 @@ exports.getFeaturedArticle = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
+  const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter(Boolean);
 
   res.json({
@@ -709,14 +734,37 @@ exports.createArticle = asyncHandler(async (req, res) => {
   }
   
   const normalizedTranslations = normalizeTranslationsForLinks(translations || {});
-  const normalizedLegacyContent = normalizeContentParagraphs(content || normalizedTranslations?.[defaultLanguage || 'en']?.content || []);
+  // Default locale uses the primary article author; other locales may override.
+  const defLang = defaultLanguage || 'en';
+  if (normalizedTranslations[defLang]) {
+    normalizedTranslations[defLang].author = author;
+  }
+
+  const localeAuthorIds = [
+    ...new Set(
+      Object.values(normalizedTranslations)
+        .map((tr) => normalizeTranslationAuthorId(tr?.author))
+        .filter(Boolean)
+    ),
+  ];
+  if (localeAuthorIds.length) {
+    const localeAuthorCount = await Author.countDocuments({ _id: { $in: localeAuthorIds } });
+    if (localeAuthorCount !== localeAuthorIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'One or more locale authors were not found',
+      });
+    }
+  }
+
+  const normalizedLegacyContent = normalizeContentParagraphs(content || normalizedTranslations?.[defLang]?.content || []);
 
   const seoSettings = await getOrCreateSeoSettings(req.tenantId);
   const canonicalPayload = applyCanonicalUrlsToPayload(
     {
-      defaultLanguage: defaultLanguage || 'en',
-      baseSlug: baseSlug || translations?.[defaultLanguage || 'en']?.slug,
-      slug: baseSlug || translations?.[defaultLanguage || 'en']?.slug,
+      defaultLanguage: defLang,
+      baseSlug: baseSlug || translations?.[defLang]?.slug,
+      slug: baseSlug || translations?.[defLang]?.slug,
       translations: normalizedTranslations,
     },
     seoSettings.siteUrl
@@ -726,15 +774,15 @@ exports.createArticle = asyncHandler(async (req, res) => {
   const articleData = {
     ...scopedFilter(req),
     // Multilingual fields
-    baseSlug: canonicalPayload.baseSlug || baseSlug || (translations?.[defaultLanguage || 'en']?.slug),
-    defaultLanguage: defaultLanguage || 'en',
+    baseSlug: canonicalPayload.baseSlug || baseSlug || (translations?.[defLang]?.slug),
+    defaultLanguage: defLang,
     isGlobal: isGlobal !== undefined ? isGlobal : true,
     regionRestrictions: isGlobal ? [] : (regionRestrictions || []),
     regionSlugs: sanitizeRegionSlugsInput(regionSlugs || {}),
     translations: canonicalPayload.translations || normalizedTranslations,
     // Legacy fields (for backward compatibility)
-    title: title || translations?.[defaultLanguage || 'en']?.title || '',
-    excerpt: excerpt || translations?.[defaultLanguage || 'en']?.excerpt || '',
+    title: title || translations?.[defLang]?.title || '',
+    excerpt: excerpt || translations?.[defLang]?.excerpt || '',
     content: normalizedLegacyContent,
     // Shared fields
     imageUrl,
@@ -849,6 +897,29 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   }
   if (translations !== undefined) {
     const normalizedTranslations = normalizeTranslationsForLinks(translations);
+    const effectiveAuthor = author !== undefined ? author : article.author;
+    const defLang = (defaultLanguage !== undefined ? defaultLanguage : article.defaultLanguage) || 'en';
+    if (normalizedTranslations[defLang] && effectiveAuthor) {
+      normalizedTranslations[defLang].author = String(effectiveAuthor._id || effectiveAuthor);
+    }
+
+    const localeAuthorIds = [
+      ...new Set(
+        Object.values(normalizedTranslations)
+          .map((tr) => normalizeTranslationAuthorId(tr?.author))
+          .filter(Boolean)
+      ),
+    ];
+    if (localeAuthorIds.length) {
+      const localeAuthorCount = await Author.countDocuments({ _id: { $in: localeAuthorIds } });
+      if (localeAuthorCount !== localeAuthorIds.length) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more locale authors were not found',
+        });
+      }
+    }
+
     // Merge translations; spread of Mongoose subdocs can omit or mishandle nested arrays.
     // Convert existing subdocs with toObject(), then markModified so content[] persists.
     Object.keys(normalizedTranslations).forEach((lang) => {
@@ -915,6 +986,12 @@ exports.updateArticle = asyncHandler(async (req, res) => {
       });
     }
     article.author = author;
+    const defLang = article.defaultLanguage || 'en';
+    if (!article.translations[defLang]) {
+      article.translations[defLang] = {};
+    }
+    article.translations[defLang].author = author;
+    article.markModified('translations');
   }
   if (tags) article.tags = tags;
   if (typeof published === 'boolean') article.published = published;

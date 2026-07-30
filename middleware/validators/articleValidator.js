@@ -107,6 +107,15 @@ exports.validateCreateArticle = [
     .trim()
     .isLength({ max: 40 })
     .withMessage('Offer button label cannot exceed 40 characters'),
+  body('translations.*.author')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (!value) return true;
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        throw new Error('Invalid locale author ID format');
+      }
+      return true;
+    }),
   body('category')
     .notEmpty()
     .withMessage('Category is required')
@@ -304,6 +313,15 @@ exports.validateUpdateArticle = [
     .trim()
     .isLength({ max: 40 })
     .withMessage('Offer button label cannot exceed 40 characters'),
+  body('translations.*.author')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (!value) return true;
+      if (!mongoose.Types.ObjectId.isValid(value)) {
+        throw new Error('Invalid locale author ID format');
+      }
+      return true;
+    }),
   body('category')
     .optional()
     .custom((value) => {

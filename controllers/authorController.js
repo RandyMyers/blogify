@@ -197,23 +197,29 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
-  
-  // Build query with region filtering
-  const query = { 
-    author: author._id, 
+
+  const AUTHOR_LANGS = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
+  const authorMatch = {
+    $or: [
+      { author: author._id },
+      ...AUTHOR_LANGS.map((lang) => ({ [`translations.${lang}.author`]: author._id })),
+    ],
+  };
+
+  const andClauses = [authorMatch];
+  if (region) {
+    andClauses.push({
+      $or: [{ isGlobal: true }, { regionRestrictions: region }],
+    });
+  } else {
+    andClauses.push({ isGlobal: true });
+  }
+
+  const query = {
     published: true,
     ...scopedFilter(req),
+    $and: andClauses,
   };
-  
-  // Region filtering
-  if (region) {
-    query.$or = [
-      { isGlobal: true },
-      { regionRestrictions: region }
-    ];
-  } else {
-    query.isGlobal = true;
-  }
 
   // Optional category filter
   let categoryFilter = null;
@@ -241,27 +247,29 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     .limit(limit)
     .populate('category', 'name slug color')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
-  
+
+  const { collectTranslationAuthorIds } = require('../utils/publicContent');
+  const trAuthorIds = collectTranslationAuthorIds(articles);
+  let authorMap = {};
+  if (trAuthorIds.length) {
+    const authors = await Author.find({ _id: { $in: trAuthorIds } }).select(
+      'name slug avatar baseSlug defaultLanguage translations'
+    );
+    authorMap = Object.fromEntries(authors.map((a) => [String(a._id), a]));
+  }
+
   const transformedArticles = articles
-    .map((article) => transformArticleForPublic(article, language))
+    .map((article) => transformArticleForPublic(article, language, authorMap))
     .filter(Boolean);
 
   const total = await Article.countDocuments(query);
 
   // Distinct categories this author has written in (for filter chips)
   const baseCategoryQuery = {
-    author: author._id,
     published: true,
     ...scopedFilter(req),
+    $and: andClauses,
   };
-  if (region) {
-    baseCategoryQuery.$or = [
-      { isGlobal: true },
-      { regionRestrictions: region },
-    ];
-  } else {
-    baseCategoryQuery.isGlobal = true;
-  }
   const categoryIds = await Article.distinct('category', baseCategoryQuery);
   const categories = await Category.find({ _id: { $in: categoryIds } })
     .select('name slug color baseSlug translations defaultLanguage')
