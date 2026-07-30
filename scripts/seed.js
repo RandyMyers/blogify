@@ -63,59 +63,42 @@ const categoriesData = [
   }
 ];
 
-// Sample authors data
+// Sample authors data (no mock social links — set those in admin)
 const authorsData = [
   {
     name: 'Sarah Johnson',
     slug: 'sarah-johnson',
     bio: 'Tech enthusiast and software engineer with 10+ years of experience. Passionate about web development and emerging technologies.',
     email: 'sarah.johnson@blogify.com',
-    socialLinks: {
-      twitter: 'https://twitter.com/sarahjohnson',
-      linkedin: 'https://linkedin.com/in/sarahjohnson',
-      github: 'https://github.com/sarahjohnson'
-    }
+    socialLinks: {}
   },
   {
     name: 'Michael Chen',
     slug: 'michael-chen',
     bio: 'UI/UX designer and creative director. Specializes in user-centered design and digital experiences.',
     email: 'michael.chen@blogify.com',
-    socialLinks: {
-      twitter: 'https://twitter.com/michaelchen',
-      linkedin: 'https://linkedin.com/in/michaelchen',
-      website: 'https://michaelchen.design'
-    }
+    socialLinks: {}
   },
   {
     name: 'Emily Rodriguez',
     slug: 'emily-rodriguez',
     bio: 'Lifestyle blogger and wellness coach. Sharing tips for balanced living and personal growth.',
     email: 'emily.rodriguez@blogify.com',
-    socialLinks: {
-      twitter: 'https://twitter.com/emilyrodriguez',
-      instagram: 'https://instagram.com/emilyrodriguez'
-    }
+    socialLinks: {}
   },
   {
     name: 'David Kim',
     slug: 'david-kim',
     bio: 'Business strategist and entrepreneur. Helping startups scale and succeed.',
     email: 'david.kim@blogify.com',
-    socialLinks: {
-      twitter: 'https://twitter.com/davidkim',
-      linkedin: 'https://linkedin.com/in/davidkim'
-    }
+    socialLinks: {}
   },
   {
     name: 'Jessica Martinez',
     slug: 'jessica-martinez',
     bio: 'Travel writer and photographer. Exploring the world one destination at a time.',
     email: 'jessica.martinez@blogify.com',
-    socialLinks: {
-      instagram: 'https://instagram.com/jessicamartinez',
-      website: 'https://jessicamartinez.com'
-    }
+    socialLinks: {}
   }
 ];
 

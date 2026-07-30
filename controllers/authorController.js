@@ -60,8 +60,14 @@ const applyAuthorPayload = (author, body) => {
   if (defaultLanguage) author.defaultLanguage = defaultLanguage;
   if (slug) author.slug = slug;
 
-  if (socialLinks) {
-    author.socialLinks = { ...author.socialLinks, ...socialLinks };
+  // Replace (do not merge) so cleared fields stay cleared after save/refresh.
+  if (socialLinks !== undefined && socialLinks !== null) {
+    author.socialLinks = {
+      twitter: socialLinks.twitter ? String(socialLinks.twitter).trim() : null,
+      linkedin: socialLinks.linkedin ? String(socialLinks.linkedin).trim() : null,
+      github: socialLinks.github ? String(socialLinks.github).trim() : null,
+      website: socialLinks.website ? String(socialLinks.website).trim() : null,
+    };
   }
 
   if (Array.isArray(customLinks)) {

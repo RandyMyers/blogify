@@ -42,19 +42,19 @@ exports.validateCreateAuthor = [
     .isObject()
     .withMessage('Social links must be an object'),
   body('socialLinks.twitter')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Twitter URL must be a valid URL'),
   body('socialLinks.linkedin')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('LinkedIn URL must be a valid URL'),
   body('socialLinks.github')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('GitHub URL must be a valid URL'),
   body('socialLinks.website')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Website URL must be a valid URL'),
   body('customLinks')
@@ -66,7 +66,7 @@ exports.validateCreateAuthor = [
     .trim()
     .isLength({ max: 80 }),
   body('customLinks.*.url')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Custom link URL must be valid'),
   asyncHandler((req, res, next) => {
@@ -110,13 +110,13 @@ exports.validateUpdateAuthor = [
     .isLength({ max: 500 })
     .withMessage('Bio cannot exceed 500 characters'),
   body('email')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .isEmail()
     .normalizeEmail()
     .withMessage('Please provide a valid email address'),
   body('avatar')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Avatar URL must be a valid URL'),
   body('socialLinks')
@@ -124,19 +124,19 @@ exports.validateUpdateAuthor = [
     .isObject()
     .withMessage('Social links must be an object'),
   body('socialLinks.twitter')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Twitter URL must be a valid URL'),
   body('socialLinks.linkedin')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('LinkedIn URL must be a valid URL'),
   body('socialLinks.github')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('GitHub URL must be a valid URL'),
   body('socialLinks.website')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Website URL must be a valid URL'),
   body('customLinks')
@@ -148,7 +148,7 @@ exports.validateUpdateAuthor = [
     .trim()
     .isLength({ max: 80 }),
   body('customLinks.*.url')
-    .optional()
+    .optional({ values: 'falsy' })
     .isURL()
     .withMessage('Custom link URL must be valid'),
   asyncHandler((req, res, next) => {
