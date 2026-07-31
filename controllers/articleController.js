@@ -747,6 +747,12 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @desc    Get trending articles
+ * @route   GET /api/articles/trending
+ * @access  Public
+ */
+exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const language = resolveRequestLanguage(req);
   const articles = await Article.find({
