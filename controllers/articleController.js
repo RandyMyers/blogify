@@ -622,11 +622,131 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
 });
 
 /**
- * @desc    Get trending articles
- * @route   GET /api/articles/trending
+ * @desc    Get similar articles (same category + shared tags)
+ * @route   GET /api/articles/similar
  * @access  Public
  */
-exports.getTrendingArticles = asyncHandler(async (req, res) => {
+exports.getSimilarArticles = asyncHandler(async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 3, 1), 6);
+  const language = resolveRequestLanguage(req);
+  const articleId = req.query.articleId || req.query.id;
+  const slug = req.query.slug;
+
+  if (!articleId && !slug) {
+    return res.status(400).json({
+      success: false,
+      message: 'articleId or slug is required',
+    });
+  }
+
+  const tenantFilter = scopedFilter(req);
+  let source = null;
+
+  if (articleId && mongoose.Types.ObjectId.isValid(articleId)) {
+    source = await Article.findOne({ ...tenantFilter, _id: articleId, published: true })
+      .select('_id category tags');
+  }
+
+  if (!source && slug) {
+    const region = req.region || req.query.region || 'US';
+    source = await Article.findOne({
+      ...tenantFilter,
+      published: true,
+      $or: [
+        { [`regionSlugs.${region}`]: slug },
+        { [`translations.${language}.slug`]: slug },
+        { baseSlug: slug },
+        { slug },
+        { previousSlugs: slug },
+      ],
+    }).select('_id category tags');
+  }
+
+  if (!source) {
+    return res.status(404).json({
+      success: false,
+      message: 'Source article not found',
+    });
+  }
+
+  const categoryId = source.category ? String(source.category._id || source.category) : null;
+  const sourceTags = (source.tags || [])
+    .map((t) => String(t || '').trim().toLowerCase())
+    .filter(Boolean);
+  const tagSet = new Set(sourceTags);
+
+  const populateOpts = [
+    { path: 'category', select: 'name slug color baseSlug defaultLanguage translations' },
+    { path: 'author', select: 'name slug avatar baseSlug defaultLanguage translations' },
+  ];
+
+  // Primary pool: same category (most common “related posts” approach).
+  let candidates = [];
+  if (categoryId) {
+    candidates = await Article.find({
+      ...tenantFilter,
+      published: true,
+      _id: { $ne: source._id },
+      category: categoryId,
+    })
+      .sort({ publishedAt: -1 })
+      .limit(40)
+      .populate(populateOpts);
+  }
+
+  // If still short, add posts that share tags (even other categories).
+  if (candidates.length < limit && sourceTags.length) {
+    const existingIds = new Set([
+      String(source._id),
+      ...candidates.map((a) => String(a._id)),
+    ]);
+    const tagMatches = await Article.find({
+      ...tenantFilter,
+      published: true,
+      _id: { $nin: [...existingIds] },
+      tags: { $in: source.tags },
+    })
+      .sort({ publishedAt: -1 })
+      .limit(30)
+      .populate(populateOpts);
+    candidates = candidates.concat(tagMatches);
+  }
+
+  const scoreArticle = (article) => {
+    let score = 0;
+    const artCat = article.category ? String(article.category._id || article.category) : null;
+    if (categoryId && artCat === categoryId) score += 10;
+    const sharedTags = (article.tags || []).filter((t) =>
+      tagSet.has(String(t || '').trim().toLowerCase())
+    );
+    score += sharedTags.length * 4;
+    return score;
+  };
+
+  const ranked = candidates
+    .map((article) => ({
+      article,
+      score: scoreArticle(article),
+      publishedAt: article.publishedAt ? new Date(article.publishedAt).getTime() : 0,
+    }))
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score || b.publishedAt - a.publishedAt)
+    .slice(0, limit)
+    .map((row) => row.article);
+
+  const authorMap = await loadTranslationAuthorMap(ranked);
+  const data = ranked
+    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .filter(Boolean);
+
+  res.json({
+    success: true,
+    count: data.length,
+    language,
+    data,
+  });
+});
+
   const limit = parseInt(req.query.limit) || 10;
   const language = resolveRequestLanguage(req);
   const articles = await Article.find({

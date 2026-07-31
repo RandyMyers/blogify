@@ -8,6 +8,7 @@ const {
   getTopArticles,
   getPopularArticles,
   getTrendingArticles,
+  getSimilarArticles,
   getFeaturedArticle,
   createArticle,
   updateArticle,
@@ -29,6 +30,7 @@ router.use(detectRegion);
 router.get('/top', getTopArticles);
 router.get('/popular', getPopularArticles);
 router.get('/trending', getTrendingArticles);
+router.get('/similar', getSimilarArticles);
 router.get('/featured', getFeaturedArticle);
 router.post('/offers/click', trackOfferClick);
 // Track view (must be before /:slug route to avoid route conflict)
