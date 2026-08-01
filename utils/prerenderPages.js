@@ -3,7 +3,7 @@ const Category = require('../models/Category');
 const Author = require('../models/Author');
 const Region = require('../models/Region');
 const { getOrCreateSeoSettings } = require('../utils/seoSettingsStore');
-const { buildTranslationSeo } = require('./translationSeo');
+const { buildTranslationSeo, normalizeKeywordList } = require('./translationSeo');
 const {
   STATIC_PAGES,
   pathForRegion,
@@ -38,8 +38,11 @@ function articleAvailableInRegion(article, regionCode) {
   return restrictions.map((r) => String(r).toUpperCase()).includes(code);
 }
 
-function buildArticleJsonLd(siteUrl, article, translation, language, pagePath, categoryName, authorName) {
+function buildArticleJsonLd(siteUrl, article, translation, language, pagePath, categoryName, authorName, keywords = []) {
   const canonical = translation?.canonicalUrl || absUrl(siteUrl, pagePath);
+  const keywordList = (Array.isArray(keywords) ? keywords : [])
+    .map((k) => String(k || '').trim())
+    .filter(Boolean);
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -61,6 +64,7 @@ function buildArticleJsonLd(siteUrl, article, translation, language, pagePath, c
     url: canonical,
     articleSection: article.articleSchema?.articleSection || categoryName,
     inLanguage: language,
+    ...(keywordList.length ? { keywords: keywordList.join(', ') } : {}),
   };
 }
 
@@ -148,13 +152,21 @@ async function buildPrerenderPages(tenantId) {
 
       const slug = info.slug;
       const pagePath = pathForRegion(regionCode, `/article/${slug}`);
+      const defaultTranslation =
+        article.translations?.[article.defaultLanguage || 'en'] || null;
       const seo = buildTranslationSeo(translation, {
         siteUrl,
         regionCode,
         slug,
+        fallbackKeywords: normalizeKeywordList(
+          defaultTranslation?.keywords,
+          article.seo?.keywords,
+          article.tags
+        ),
       });
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
+      const pageKeywords = normalizeKeywordList(seo.keywords, seo.focusKeyword);
 
       const hreflang = buildArticleHreflangLinks(article, regions, articleHreflangOpts);
 
@@ -170,7 +182,7 @@ async function buildPrerenderPages(tenantId) {
         metaTitle: seo.metaTitle,
         metaDescription: seo.metaDescription,
         description: seo.metaDescription,
-        keywords: [...(seo.keywords || []), seo.focusKeyword].filter(Boolean),
+        keywords: pageKeywords,
         canonicalUrl: seo.canonicalUrl || absUrl(siteUrl, pagePath),
         robots: (seo.robots || 'index,follow').replace(',', ', '),
         ogTitle: seo.ogTitle,
@@ -179,7 +191,7 @@ async function buildPrerenderPages(tenantId) {
         twitterTitle: seo.twitterTitle,
         twitterDescription: seo.twitterDescription,
         twitterCard: article.twitterCard || 'summary_large_image',
-        tags: article.tags || [],
+        tags: pageKeywords.length ? pageKeywords : (article.tags || []),
         publishedAt: article.publishedAt,
         modifiedAt: article.updatedAt,
         ogType: 'article',
@@ -192,7 +204,8 @@ async function buildPrerenderPages(tenantId) {
           lang,
           pagePath,
           categoryName,
-          authorName
+          authorName,
+          pageKeywords
         ),
       });
     });

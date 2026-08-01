@@ -13,6 +13,7 @@ const {
   buildAvailableRegions,
   sanitizeRegionSlugsInput,
 } = require('../utils/regionSlug');
+const { buildTranslationSeo, normalizeKeywordList } = require('../utils/translationSeo');
 
 const FOLLOW_BLOCKLIST = new Set(['nofollow', 'ugc', 'sponsored']);
 const mongoose = require('mongoose');
@@ -72,6 +73,8 @@ const normalizeTranslationsForLinks = (translations) => {
     normalized[lang] = {
       ...translation,
       content: normalizeContentParagraphs(translation.content),
+      keywords: normalizeKeywordList(translation.keywords),
+      focusKeyword: String(translation.focusKeyword || '').trim(),
       offers,
       author: normalizeTranslationAuthorId(translation.author),
     };
@@ -97,8 +100,6 @@ const loadTranslationAuthorMap = async (articles) => {
   return Object.fromEntries(authors.map((a) => [String(a._id), a]));
 };
 
-const { buildTranslationSeo } = require('../utils/translationSeo');
-
 function serializeOffers(offers = []) {
   if (!Array.isArray(offers)) return [];
   return offers.map((offer) => ({
@@ -118,9 +119,16 @@ const transformArticleForPublic = (article, language, authorMap = {}) => {
   const base = transformArticlePublic(article, language, authorMap);
   if (!base) return null;
   const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
+  const defaultTranslation = article.getTranslation(article.defaultLanguage);
   return {
     ...base,
-    seo: buildTranslationSeo(translation),
+    seo: buildTranslationSeo(translation, {
+      fallbackKeywords: normalizeKeywordList(
+        defaultTranslation?.keywords,
+        article.seo?.keywords,
+        article.tags
+      ),
+    }),
     twitterCard: article.twitterCard || 'summary_large_image',
     articleSchema: {
       publisher: article.articleSchema?.publisher || '',
@@ -356,7 +364,12 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
       updatedAt: article.updatedAt,
       seoScore: article.seoScore,
       seoScoreUpdatedAt: article.seoScoreUpdatedAt,
-      seo: buildTranslationSeo(activeTranslation),
+      seo: buildTranslationSeo(activeTranslation, {
+        fallbackKeywords: normalizeKeywordList(
+          article.seo?.keywords,
+          article.tags
+        ),
+      }),
       language,
       availableLanguages: article.getAvailableLanguages()
     };
@@ -447,6 +460,12 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
         siteUrl,
         regionCode: region,
         slug: regionSlug,
+        // Prefer locale keywords; fall back to default-locale / legacy seo / tags
+        fallbackKeywords: normalizeKeywordList(
+          defaultTranslation?.keywords,
+          article.seo?.keywords,
+          article.tags
+        ),
       }),
       language: language,
       offers: serializeOffers(activeTranslation.offers),
@@ -981,7 +1000,10 @@ exports.createArticle = asyncHandler(async (req, res) => {
     published: published || false,
     featured: featured || false,
     trending: trending || false,
-    seo: seo || {},
+    seo: {
+      ...(seo || {}),
+      keywords: normalizeKeywordList(seo?.keywords),
+    },
     twitterCard: twitterCard || 'summary_large_image',
     articleSchema: articleSchema || {},
   };
@@ -1185,7 +1207,13 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (typeof published === 'boolean') article.published = published;
   if (typeof featured === 'boolean') article.featured = featured;
   if (typeof trending === 'boolean') article.trending = trending;
-  if (seo) article.seo = { ...article.seo, ...seo };
+  if (seo) {
+    article.seo = {
+      ...(typeof article.seo?.toObject === 'function' ? article.seo.toObject() : article.seo || {}),
+      ...seo,
+      keywords: normalizeKeywordList(seo.keywords),
+    };
+  }
   if (twitterCard !== undefined) article.twitterCard = twitterCard;
   if (articleSchema !== undefined) {
     article.articleSchema = { ...(article.articleSchema || {}), ...articleSchema };
