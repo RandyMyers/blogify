@@ -224,6 +224,7 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   const query = {
     published: true,
     ...scopedFilter(req),
+    [`translations.${language}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
     $and: andClauses,
   };
 

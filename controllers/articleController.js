@@ -79,7 +79,7 @@ const normalizeTranslationsForLinks = (translations) => {
   return normalized;
 };
 
-const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds } = require('../utils/publicContent');
+const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds, translationTitleFilter } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
 const { getOrCreateSeoSettings } = require('./seoSettingsController');
 const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
@@ -176,13 +176,18 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   const region = req.query.region || req.region || 'US';
   
   // Build query
-  const query = { published: true, ...scopedFilter(req) };
+  const query = { published: true, ...scopedFilter(req), ...translationTitleFilter(language) };
   
   // Region filtering
   if (region) {
-    query.$or = [
-      { isGlobal: true },
-      { regionRestrictions: region }
+    query.$and = [
+      ...(query.$and || []),
+      {
+        $or: [
+          { isGlobal: true },
+          { regionRestrictions: region }
+        ],
+      },
     ];
   } else {
     // If no region specified, only show global articles
@@ -568,7 +573,14 @@ exports.trackView = asyncHandler(async (req, res) => {
 exports.getTopArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   const language = resolveRequestLanguage(req);
-  const articles = await Article.find({ ...scopedFilter(req), published: true })
+  const region = req.query.region || req.region || 'US';
+  const query = {
+    ...scopedFilter(req),
+    published: true,
+    ...translationTitleFilter(language),
+    $or: [{ isGlobal: true }, { regionRestrictions: region }],
+  };
+  const articles = await Article.find(query)
     .sort({ views: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -595,6 +607,7 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
 exports.getPopularArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const language = resolveRequestLanguage(req);
+  const region = req.query.region || req.region || 'US';
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const articles = await Article.find({
@@ -602,6 +615,8 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
     published: true,
     publishedAt: { $gte: thirtyDaysAgo },
     views: { $gt: 0 },
+    ...translationTitleFilter(language),
+    $or: [{ isGlobal: true }, { regionRestrictions: region }],
   })
     .sort({ views: -1, likes: -1, publishedAt: -1 })
     .limit(limit)
@@ -688,6 +703,7 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
       published: true,
       _id: { $ne: source._id },
       category: categoryId,
+      ...translationTitleFilter(language),
     })
       .sort({ publishedAt: -1 })
       .limit(40)
@@ -705,6 +721,7 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
       published: true,
       _id: { $nin: [...existingIds] },
       tags: { $in: source.tags },
+      ...translationTitleFilter(language),
     })
       .sort({ publishedAt: -1 })
       .limit(30)
@@ -755,10 +772,13 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
 exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const language = resolveRequestLanguage(req);
+  const region = req.query.region || req.region || 'US';
   const articles = await Article.find({
     ...scopedFilter(req),
     trending: true,
     published: true,
+    ...translationTitleFilter(language),
+    $or: [{ isGlobal: true }, { regionRestrictions: region }],
   })
     .sort({ publishedAt: -1 })
     .limit(limit)
@@ -786,10 +806,13 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
 exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 1;
   const language = resolveRequestLanguage(req);
+  const region = req.query.region || req.region || 'US';
   const articles = await Article.find({
     ...scopedFilter(req),
     featured: true,
     published: true,
+    ...translationTitleFilter(language),
+    $or: [{ isGlobal: true }, { regionRestrictions: region }],
   })
     .sort({ publishedAt: -1 })
     .limit(limit)

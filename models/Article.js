@@ -385,7 +385,8 @@ articleSchema.statics.search = function(query, options = {}) {
   const { limit = 10, skip = 0, category, author, language = 'en', region, tenantId } = options;
   
   const searchQuery = {
-    published: true
+    published: true,
+    [`translations.${language}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
   };
   if (tenantId) {
     searchQuery.tenantId = tenantId;
@@ -393,9 +394,13 @@ articleSchema.statics.search = function(query, options = {}) {
   
   // Region filtering
   if (region) {
-    searchQuery.$or = [
-      { isGlobal: true },
-      { regionRestrictions: region }
+    searchQuery.$and = [
+      {
+        $or: [
+          { isGlobal: true },
+          { regionRestrictions: region }
+        ],
+      },
     ];
   } else {
     // If no region specified, only show global articles
@@ -404,7 +409,6 @@ articleSchema.statics.search = function(query, options = {}) {
   
   // Language-specific text search
   if (language && this.schema.path(`translations.${language}.title`)) {
-    searchQuery[`translations.${language}.title`] = { $exists: true };
     // Use language-specific text index if available
     searchQuery.$text = { $search: query };
   } else {

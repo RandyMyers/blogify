@@ -37,13 +37,10 @@ exports.searchArticles = asyncHandler(async (req, res) => {
     tenantId: req.tenantId
   });
   
-  // Transform articles to include language-specific content
+  // Transform articles to include language-specific content (exact locale only)
   const transformedArticles = articles.map(article => {
-    const translation = article.getTranslation(language);
-    const defaultTranslation = article.getTranslation(article.defaultLanguage);
-    const activeTranslation = translation || defaultTranslation;
-    
-    if (!activeTranslation) {
+    const activeTranslation = article.translations?.[language];
+    if (!activeTranslation?.title) {
       return null;
     }
     

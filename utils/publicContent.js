@@ -81,11 +81,31 @@ const formatPopulatedCategory = (category, language) => {
   };
 };
 
-const transformArticleForPublic = (article, language, authorMap = {}) => {
-  const translation = article.getTranslation(language);
-  const defaultTranslation = article.getTranslation(article.defaultLanguage);
-  const activeTranslation = translation || defaultTranslation;
+/**
+ * Mongo filter: article must have a non-empty title in the requested language.
+ * Use on public listing endpoints so FR/etc. do not fall back to en-US content.
+ */
+const translationTitleFilter = (language) => {
+  const lang = String(language || 'en').toLowerCase();
+  return {
+    [`translations.${lang}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
+  };
+};
 
+/** Exact translation only — no default-language fallback. */
+const getExactTranslation = (article, language) => {
+  if (!article) return null;
+  const lang = String(language || 'en').toLowerCase();
+  let tr = article.translations?.[lang];
+  if (!tr) return null;
+  if (typeof tr.toObject === 'function') tr = tr.toObject();
+  if (!tr?.title || !String(tr.title).trim()) return null;
+  return tr;
+};
+
+const transformArticleForPublic = (article, language, authorMap = {}) => {
+  // Listings must show the requested locale only (no silent fallback to default language).
+  const activeTranslation = getExactTranslation(article, language);
   if (!activeTranslation) {
     return null;
   }
@@ -120,4 +140,6 @@ module.exports = {
   resolveArticleAuthor,
   collectTranslationAuthorIds,
   getTranslationAuthorId,
+  translationTitleFilter,
+  getExactTranslation,
 };

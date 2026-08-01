@@ -268,14 +268,19 @@ const slugOr = [
   const query = { 
     category: category._id, 
     published: true,
-    ...scopedFilter(req)
+    ...scopedFilter(req),
+    [`translations.${language}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
   };
   
   // Region filtering
   if (region) {
-    query.$or = [
-      { isGlobal: true },
-      { regionRestrictions: region }
+    query.$and = [
+      {
+        $or: [
+          { isGlobal: true },
+          { regionRestrictions: region }
+        ],
+      },
     ];
   } else {
     query.isGlobal = true;
@@ -289,11 +294,8 @@ const slugOr = [
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   const transformedArticles = articles.map((article) => {
-    const translation = article.getTranslation(language);
-    const defaultTranslation = article.getTranslation(article.defaultLanguage);
-    const activeTranslation = translation || defaultTranslation;
-    
-    if (!activeTranslation) {
+    const activeTranslation = article.translations?.[language];
+    if (!activeTranslation?.title) {
       return null;
     }
     
