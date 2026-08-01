@@ -83,13 +83,38 @@ const formatPopulatedCategory = (category, language) => {
 
 /**
  * Mongo filter: article must have a non-empty title in the requested language.
- * Use on public listing endpoints so FR/etc. do not fall back to en-US content.
  */
 const translationTitleFilter = (language) => {
   const lang = String(language || 'en').toLowerCase();
   return {
     [`translations.${lang}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
   };
+};
+
+const FALLBACK_LISTING_LANGUAGE = 'en';
+
+/**
+ * Prefer the requested locale when it has at least one article; otherwise fall back to English.
+ * Use on public listing endpoints (home, trending, category feeds, etc.).
+ */
+const resolveListingLanguage = async (Model, baseQuery = {}, requestedLanguage = 'en') => {
+  const requested = String(requestedLanguage || FALLBACK_LISTING_LANGUAGE).toLowerCase();
+  const fallback = FALLBACK_LISTING_LANGUAGE;
+
+  if (requested === fallback) {
+    return { language: requested, usedFallback: false };
+  }
+
+  const localeCount = await Model.countDocuments({
+    ...baseQuery,
+    ...translationTitleFilter(requested),
+  });
+
+  if (localeCount > 0) {
+    return { language: requested, usedFallback: false };
+  }
+
+  return { language: fallback, usedFallback: true };
 };
 
 /** Exact translation only — no default-language fallback. */
@@ -142,4 +167,6 @@ module.exports = {
   getTranslationAuthorId,
   translationTitleFilter,
   getExactTranslation,
+  resolveListingLanguage,
+  FALLBACK_LISTING_LANGUAGE,
 };

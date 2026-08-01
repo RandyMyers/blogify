@@ -221,10 +221,10 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     andClauses.push({ isGlobal: true });
   }
 
-  const query = {
+  const requestedLanguage = language;
+  const baseQuery = {
     published: true,
     ...scopedFilter(req),
-    [`translations.${language}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
     $and: andClauses,
   };
 
@@ -233,15 +233,26 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   if (categorySlug) {
     categoryFilter = await Category.findOne({
       $or: [
-        { [`translations.${language}.slug`]: categorySlug },
+        { [`translations.${requestedLanguage}.slug`]: categorySlug },
         { baseSlug: categorySlug },
         { slug: categorySlug },
       ],
     }).select('_id name slug color baseSlug translations');
     if (categoryFilter) {
-      query.category = categoryFilter._id;
+      baseQuery.category = categoryFilter._id;
     }
   }
+
+  const { resolveListingLanguage, translationTitleFilter } = require('../utils/publicContent');
+  const { language: listLanguage, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const query = {
+    ...baseQuery,
+    ...translationTitleFilter(listLanguage),
+  };
 
   const sort =
     sortMode === 'popular'
@@ -266,7 +277,7 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
   }
 
   const transformedArticles = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, listLanguage, authorMap))
     .filter(Boolean);
 
   const total = await Article.countDocuments(query);
@@ -283,7 +294,7 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     .sort({ name: 1 });
 
   const filterCategories = categories.map((cat) => {
-    const tr = cat.translations?.[language] || cat.translations?.[cat.defaultLanguage];
+    const tr = cat.translations?.[listLanguage] || cat.translations?.[cat.defaultLanguage];
     return {
       _id: cat._id,
       name: tr?.name || cat.name,
@@ -299,7 +310,9 @@ exports.getAuthorArticles = asyncHandler(async (req, res) => {
     page,
     pages: Math.ceil(total / limit) || 0,
     limit,
-    language,
+    language: listLanguage,
+    requestedLanguage,
+    localeFallback: usedFallback,
     region,
     sort: sortMode === 'popular' ? 'popular' : 'newest',
     category: categoryFilter

@@ -79,7 +79,7 @@ const normalizeTranslationsForLinks = (translations) => {
   return normalized;
 };
 
-const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds, translationTitleFilter } = require('../utils/publicContent');
+const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds, translationTitleFilter, resolveListingLanguage } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
 const { getOrCreateSeoSettings } = require('./seoSettingsController');
 const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
@@ -171,17 +171,14 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   const featured = req.query.featured === 'true';
   const trending = req.query.trending === 'true';
   
-  // Get language and region from request (set by detectRegion middleware)
-  const language = resolveRequestLanguage(req);
+  const requestedLanguage = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
   
-  // Build query
-  const query = { published: true, ...scopedFilter(req), ...translationTitleFilter(language) };
+  // Base filters (without language) — used to decide locale vs English fallback
+  const baseQuery = { published: true, ...scopedFilter(req) };
   
-  // Region filtering
   if (region) {
-    query.$and = [
-      ...(query.$and || []),
+    baseQuery.$and = [
       {
         $or: [
           { isGlobal: true },
@@ -190,29 +187,20 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
       },
     ];
   } else {
-    // If no region specified, only show global articles
-    query.isGlobal = true;
+    baseQuery.isGlobal = true;
   }
   
-  // Category filter
-  if (category) {
-    query.category = category;
-  }
-  
-  // Author filter
-  if (author) {
-    query.author = author;
-  }
-  
-  // Featured filter
-  if (featured === true) {
-    query.featured = true;
-  }
-  
-  // Trending filter
-  if (trending === true) {
-    query.trending = true;
-  }
+  if (category) baseQuery.category = category;
+  if (author) baseQuery.author = author;
+  if (featured === true) baseQuery.featured = true;
+  if (trending === true) baseQuery.trending = true;
+
+  const { language, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const query = { ...baseQuery, ...translationTitleFilter(language) };
   
   const articles = await Article.find(query)
     .sort({ publishedAt: -1 })
@@ -235,6 +223,8 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
     page,
     pages: Math.ceil(total / limit),
     language,
+    requestedLanguage,
+    localeFallback: usedFallback,
     region,
     data: transformedArticles
   });
@@ -572,15 +562,19 @@ exports.trackView = asyncHandler(async (req, res) => {
  */
 exports.getTopArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
-  const language = resolveRequestLanguage(req);
+  const requestedLanguage = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
-  const query = {
+  const baseQuery = {
     ...scopedFilter(req),
     published: true,
-    ...translationTitleFilter(language),
     $or: [{ isGlobal: true }, { regionRestrictions: region }],
   };
-  const articles = await Article.find(query)
+  const { language, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ views: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -595,6 +589,8 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
     success: true,
     count: data.length,
     language,
+    requestedLanguage,
+    localeFallback: usedFallback,
     data,
   });
 });
@@ -606,18 +602,23 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
  */
 exports.getPopularArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
-  const language = resolveRequestLanguage(req);
+  const requestedLanguage = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const articles = await Article.find({
+  const baseQuery = {
     ...scopedFilter(req),
     published: true,
     publishedAt: { $gte: thirtyDaysAgo },
     views: { $gt: 0 },
-    ...translationTitleFilter(language),
     $or: [{ isGlobal: true }, { regionRestrictions: region }],
-  })
+  };
+  const { language, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ views: -1, likes: -1, publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -632,6 +633,8 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
     success: true,
     count: data.length,
     language,
+    requestedLanguage,
+    localeFallback: usedFallback,
     data,
   });
 });
@@ -696,6 +699,24 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
   ];
 
   // Primary pool: same category (most common “related posts” approach).
+  const region = req.query.region || req.region || 'US';
+  const regionAccess = {
+    $or: [{ isGlobal: true }, { regionRestrictions: region }],
+  };
+  const requestedLanguage = language;
+  const similarBase = {
+    ...tenantFilter,
+    published: true,
+    _id: { $ne: source._id },
+    ...regionAccess,
+    ...(categoryId ? { category: categoryId } : {}),
+  };
+  const { language: listLanguage, usedFallback } = await resolveListingLanguage(
+    Article,
+    similarBase,
+    requestedLanguage
+  );
+
   let candidates = [];
   if (categoryId) {
     candidates = await Article.find({
@@ -703,7 +724,8 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
       published: true,
       _id: { $ne: source._id },
       category: categoryId,
-      ...translationTitleFilter(language),
+      ...translationTitleFilter(listLanguage),
+      ...regionAccess,
     })
       .sort({ publishedAt: -1 })
       .limit(40)
@@ -721,7 +743,8 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
       published: true,
       _id: { $nin: [...existingIds] },
       tags: { $in: source.tags },
-      ...translationTitleFilter(language),
+      ...translationTitleFilter(listLanguage),
+      ...regionAccess,
     })
       .sort({ publishedAt: -1 })
       .limit(30)
@@ -753,13 +776,15 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(ranked);
   const data = ranked
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, listLanguage, authorMap))
     .filter(Boolean);
 
   res.json({
     success: true,
     count: data.length,
-    language,
+    language: listLanguage,
+    requestedLanguage,
+    localeFallback: usedFallback,
     data,
   });
 });
@@ -771,15 +796,20 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
  */
 exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
-  const language = resolveRequestLanguage(req);
+  const requestedLanguage = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
-  const articles = await Article.find({
+  const baseQuery = {
     ...scopedFilter(req),
     trending: true,
     published: true,
-    ...translationTitleFilter(language),
     $or: [{ isGlobal: true }, { regionRestrictions: region }],
-  })
+  };
+  const { language, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -794,6 +824,8 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
     success: true,
     count: data.length,
     language,
+    requestedLanguage,
+    localeFallback: usedFallback,
     data,
   });
 });
@@ -805,15 +837,20 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
  */
 exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 1;
-  const language = resolveRequestLanguage(req);
+  const requestedLanguage = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
-  const articles = await Article.find({
+  const baseQuery = {
     ...scopedFilter(req),
     featured: true,
     published: true,
-    ...translationTitleFilter(language),
     $or: [{ isGlobal: true }, { regionRestrictions: region }],
-  })
+  };
+  const { language, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ publishedAt: -1 })
     .limit(limit)
     .populate('category', 'name slug color')
@@ -828,6 +865,8 @@ exports.getFeaturedArticle = asyncHandler(async (req, res) => {
     success: true,
     count: data.length,
     language,
+    requestedLanguage,
+    localeFallback: usedFallback,
     data,
   });
 });

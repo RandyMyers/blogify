@@ -2,7 +2,7 @@ const Category = require('../models/Category');
 const Article = require('../models/Article');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { scopedFilter } = require('../utils/tenantScope');
-const { formatPopulatedAuthor, formatPopulatedCategory } = require('../utils/publicContent');
+const { formatPopulatedAuthor, formatPopulatedCategory, resolveListingLanguage, translationTitleFilter, getExactTranslation } = require('../utils/publicContent');
 const { isObjectIdString } = require('../utils/objectIdUtils');
 
 async function getPostCountByCategoryIds(categoryIds, tenantId) {
@@ -263,18 +263,18 @@ const slugOr = [
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+  const requestedLanguage = language;
   
-  // Build query with region filtering
-  const query = { 
+  // Build query with region filtering (language resolved after)
+  const baseQuery = { 
     category: category._id, 
     published: true,
     ...scopedFilter(req),
-    [`translations.${language}.title`]: { $exists: true, $type: 'string', $regex: /\S/ },
   };
   
   // Region filtering
   if (region) {
-    query.$and = [
+    baseQuery.$and = [
       {
         $or: [
           { isGlobal: true },
@@ -283,8 +283,15 @@ const slugOr = [
       },
     ];
   } else {
-    query.isGlobal = true;
+    baseQuery.isGlobal = true;
   }
+
+  const { language: listLanguage, usedFallback } = await resolveListingLanguage(
+    Article,
+    baseQuery,
+    requestedLanguage
+  );
+  const query = { ...baseQuery, ...translationTitleFilter(listLanguage) };
   
   const articles = await Article.find(query)
     .sort({ publishedAt: -1 })
@@ -294,8 +301,8 @@ const slugOr = [
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   const transformedArticles = articles.map((article) => {
-    const activeTranslation = article.translations?.[language];
-    if (!activeTranslation?.title) {
+    const activeTranslation = getExactTranslation(article, listLanguage);
+    if (!activeTranslation) {
       return null;
     }
     
@@ -307,21 +314,21 @@ const slugOr = [
       excerpt: activeTranslation.excerpt,
       content: activeTranslation.content,
       imageUrl: article.imageUrl,
-      category: formatPopulatedCategory(article.category, language),
-      author: formatPopulatedAuthor(article.author, language),
+      category: formatPopulatedCategory(article.category, listLanguage),
+      author: formatPopulatedAuthor(article.author, listLanguage),
       tags: article.tags,
       publishedAt: article.publishedAt,
       views: article.views,
       likes: article.likes,
       readTime: article.readTime,
-      language: language
+      language: listLanguage
     };
   }).filter(article => article !== null);
   
   const total = await Article.countDocuments(query);
   
   // Get category translation
-  const categoryTranslation = category.getTranslation(language);
+  const categoryTranslation = category.getTranslation(listLanguage);
   const defaultCategoryTranslation = category.getTranslation(category.defaultLanguage);
   const activeCategoryTranslation = categoryTranslation || defaultCategoryTranslation;
   
@@ -331,7 +338,9 @@ const slugOr = [
     total,
     page,
     pages: Math.ceil(total / limit),
-    language,
+    language: listLanguage,
+    requestedLanguage,
+    localeFallback: usedFallback,
     region,
     category: {
       _id: category._id,
