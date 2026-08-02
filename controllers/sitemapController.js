@@ -4,6 +4,7 @@ const Author = require('../models/Author');
 const Region = require('../models/Region');
 const { getSlugForRegion, buildArticleHreflangRegions, buildArticleHreflangLinks, buildStaticHreflangLinks } = require('../utils/regionSlug');
 const { pathForRegion, absUrl } = require('../utils/prerenderMeta');
+const { DEFAULT_REGION_LANGUAGES } = require('../constants/regions');
 
 // Base URL from environment or default
 const BASE_URL = process.env.CLIENT_URL || 'https://bloomwik.com';
@@ -11,28 +12,20 @@ const BASE_URL = process.env.CLIENT_URL || 'https://bloomwik.com';
 // All supported languages
 const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
 
-// Region to language mapping
-const REGION_LANGUAGE_MAP = {
-  'US': 'en',
-  'GB': 'en',
-  'CA': 'en',
-  'AU': 'en',
-  'IE': 'en',
-  'FR': 'fr',
-  'LU': 'fr',
-  'BE': 'nl',
-  'NL': 'nl',
-  'ES': 'es',
-  'DE': 'de',
-  'CH': 'de',
-  'AT': 'de',
-  'IT': 'it',
-  'PT': 'pt',
-  'SE': 'sv',
-  'FI': 'fi',
-  'DK': 'da',
-  'NO': 'no'
-};
+/** Prefer catalog default language per region (always in sync with regions.json). */
+function languageForRegionCode(regionCode, fallback = 'en') {
+  const code = String(regionCode || '').toUpperCase();
+  return DEFAULT_REGION_LANGUAGES[code] || fallback;
+}
+
+/** Preferred region URL for a content language (first catalog match, US preferred for en). */
+function preferredRegionForLanguage(lang) {
+  const normalized = String(lang || 'en').toLowerCase();
+  const entries = Object.entries(DEFAULT_REGION_LANGUAGES);
+  if (normalized === 'en' && DEFAULT_REGION_LANGUAGES.US === 'en') return 'US';
+  const match = entries.find(([, language]) => String(language).toLowerCase() === normalized);
+  return match ? match[0] : 'US';
+}
 
 /**
  * Generate sitemap index XML
@@ -234,7 +227,7 @@ const generateCategoriesSitemap = async (req, res) => {
       Object.keys(category.translations).forEach(lang => {
         const translation = category.translations[lang];
         if (translation && translation.slug) {
-          const region = Object.keys(REGION_LANGUAGE_MAP).find(r => REGION_LANGUAGE_MAP[r] === lang);
+          const region = preferredRegionForLanguage(lang);
           const regionCode = region ? region.toLowerCase() : 'us';
           const catUrl = regionCode === 'us' 
             ? `${BASE_URL}/category/${translation.slug}`
@@ -249,7 +242,7 @@ const generateCategoriesSitemap = async (req, res) => {
       // Regional versions
       regions.forEach(region => {
         if (region.code !== 'US') {
-          const lang = REGION_LANGUAGE_MAP[region.code] || category.defaultLanguage;
+          const lang = languageForRegionCode(region.code, category.defaultLanguage);
           const translation = category.translations[lang];
           
           if (translation && translation.slug) {
@@ -264,7 +257,7 @@ const generateCategoriesSitemap = async (req, res) => {
             Object.keys(category.translations).forEach(l => {
               const trans = category.translations[l];
               if (trans && trans.slug) {
-                const r = Object.keys(REGION_LANGUAGE_MAP).find(reg => REGION_LANGUAGE_MAP[reg] === l);
+                const r = preferredRegionForLanguage(l);
                 const rCode = r ? r.toLowerCase() : 'us';
                 const cUrl = rCode === 'us' 
                   ? `${BASE_URL}/category/${trans.slug}`
@@ -318,7 +311,7 @@ const generateAuthorsSitemap = async (req, res) => {
       Object.keys(author.translations).forEach(lang => {
         const translation = author.translations[lang];
         if (translation && translation.slug) {
-          const region = Object.keys(REGION_LANGUAGE_MAP).find(r => REGION_LANGUAGE_MAP[r] === lang);
+          const region = preferredRegionForLanguage(lang);
           const regionCode = region ? region.toLowerCase() : 'us';
           const authUrl = regionCode === 'us' 
             ? `${BASE_URL}/author/${translation.slug}`
@@ -333,7 +326,7 @@ const generateAuthorsSitemap = async (req, res) => {
       // Regional versions
       regions.forEach(region => {
         if (region.code !== 'US') {
-          const lang = REGION_LANGUAGE_MAP[region.code] || author.defaultLanguage;
+          const lang = languageForRegionCode(region.code, author.defaultLanguage);
           const translation = author.translations[lang];
           
           if (translation && translation.slug) {
@@ -348,7 +341,7 @@ const generateAuthorsSitemap = async (req, res) => {
             Object.keys(author.translations).forEach(l => {
               const trans = author.translations[l];
               if (trans && trans.slug) {
-                const r = Object.keys(REGION_LANGUAGE_MAP).find(reg => REGION_LANGUAGE_MAP[reg] === l);
+                const r = preferredRegionForLanguage(l);
                 const rCode = r ? r.toLowerCase() : 'us';
                 const aUrl = rCode === 'us' 
                   ? `${BASE_URL}/author/${trans.slug}`

@@ -159,7 +159,7 @@ async function buildPrerenderPages(tenantId) {
       });
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
-      const pageKeywords = normalizeKeywordList(seo.keywords);
+      const pageKeywords = normalizeKeywordList(seo.keywords, seo.focusKeyword);
 
       const hreflang = buildArticleHreflangLinks(article, regions, articleHreflangOpts);
 

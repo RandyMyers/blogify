@@ -15,6 +15,7 @@
     "analyze:translations": "node scripts/analyzeTranslations.js",
     "check:categories": "node scripts/checkCategoryTranslations.js",
     "check:article-seo": "node scripts/checkArticleSeo.js",
+    "audit:keywords": "node scripts/auditArticleKeywords.js",
     "check:category-lang": "node scripts/fixCategoryDefaultLanguage.js",
     "fix:category-lang": "node scripts/fixCategoryDefaultLanguage.js --fix",
     "setup:bloomwik": "node scripts/setupBloomwikTenant.js",
