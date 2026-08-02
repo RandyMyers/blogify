@@ -152,21 +152,14 @@ async function buildPrerenderPages(tenantId) {
 
       const slug = info.slug;
       const pagePath = pathForRegion(regionCode, `/article/${slug}`);
-      const defaultTranslation =
-        article.translations?.[article.defaultLanguage || 'en'] || null;
       const seo = buildTranslationSeo(translation, {
         siteUrl,
         regionCode,
         slug,
-        fallbackKeywords: normalizeKeywordList(
-          defaultTranslation?.keywords,
-          article.seo?.keywords,
-          article.tags
-        ),
       });
       const categoryName = article.category?.name || '';
       const authorName = article.author?.name || '';
-      const pageKeywords = normalizeKeywordList(seo.keywords, seo.focusKeyword);
+      const pageKeywords = normalizeKeywordList(seo.keywords);
 
       const hreflang = buildArticleHreflangLinks(article, regions, articleHreflangOpts);
 
@@ -191,7 +184,7 @@ async function buildPrerenderPages(tenantId) {
         twitterTitle: seo.twitterTitle,
         twitterDescription: seo.twitterDescription,
         twitterCard: article.twitterCard || 'summary_large_image',
-        tags: pageKeywords.length ? pageKeywords : (article.tags || []),
+        tags: article.tags || [],
         publishedAt: article.publishedAt,
         modifiedAt: article.updatedAt,
         ogType: 'article',

@@ -119,16 +119,9 @@ const transformArticleForPublic = (article, language, authorMap = {}) => {
   const base = transformArticlePublic(article, language, authorMap);
   if (!base) return null;
   const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
-  const defaultTranslation = article.getTranslation(article.defaultLanguage);
   return {
     ...base,
-    seo: buildTranslationSeo(translation, {
-      fallbackKeywords: normalizeKeywordList(
-        defaultTranslation?.keywords,
-        article.seo?.keywords,
-        article.tags
-      ),
-    }),
+    seo: buildTranslationSeo(translation),
     twitterCard: article.twitterCard || 'summary_large_image',
     articleSchema: {
       publisher: article.articleSchema?.publisher || '',
@@ -364,12 +357,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
       updatedAt: article.updatedAt,
       seoScore: article.seoScore,
       seoScoreUpdatedAt: article.seoScoreUpdatedAt,
-      seo: buildTranslationSeo(activeTranslation, {
-        fallbackKeywords: normalizeKeywordList(
-          article.seo?.keywords,
-          article.tags
-        ),
-      }),
+      seo: buildTranslationSeo(activeTranslation),
       language,
       availableLanguages: article.getAvailableLanguages()
     };
@@ -460,12 +448,6 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
         siteUrl,
         regionCode: region,
         slug: regionSlug,
-        // Prefer locale keywords; fall back to default-locale / legacy seo / tags
-        fallbackKeywords: normalizeKeywordList(
-          defaultTranslation?.keywords,
-          article.seo?.keywords,
-          article.tags
-        ),
       }),
       language: language,
       offers: serializeOffers(activeTranslation.offers),

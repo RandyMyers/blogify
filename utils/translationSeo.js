@@ -2,6 +2,7 @@ const { resolveCanonicalForArticle } = require('./canonicalUrl');
 
 /**
  * Normalize keywords from admin/API/mongoose into a plain unique string[].
+ * Only values explicitly provided — never invent or merge fallback sources.
  */
 function normalizeKeywordList(...sources) {
   const out = [];
@@ -49,8 +50,12 @@ function plainTranslation(translation) {
   return translation;
 }
 
+/**
+ * Build public SEO from the active locale translation only.
+ * Keywords / metaTitle / metaDescription never fall back to tags or other locales.
+ */
 function buildTranslationSeo(translation, options = {}) {
-  const { siteUrl, regionCode, slug, fallbackKeywords } = options;
+  const { siteUrl, regionCode, slug } = options;
   const tr = plainTranslation(translation) || {};
   let canonicalUrl = tr.canonicalUrl || '';
 
@@ -63,15 +68,10 @@ function buildTranslationSeo(translation, options = {}) {
     });
   }
 
-  const ownKeywords = normalizeKeywordList(tr.keywords);
-  const keywords = ownKeywords.length
-    ? ownKeywords
-    : normalizeKeywordList(fallbackKeywords);
-
   return {
     metaTitle: tr.metaTitle || '',
     metaDescription: tr.metaDescription || '',
-    keywords,
+    keywords: normalizeKeywordList(tr.keywords),
     focusKeyword: tr.focusKeyword || '',
     canonicalUrl,
     robots: tr.robots || 'index,follow',
