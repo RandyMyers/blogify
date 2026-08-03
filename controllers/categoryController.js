@@ -297,7 +297,7 @@ const slugOr = [
     .sort({ publishedAt: -1 })
     .skip(skip)
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   const transformedArticles = articles.map((article) => {

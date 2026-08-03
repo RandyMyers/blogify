@@ -150,7 +150,7 @@ const transformArticleForPublic = (article, language, authorMap = {}, region = '
 exports.getArticleById = asyncHandler(async (req, res) => {
   const filter = scopedIdFilter(req, req.params.id);
   const article = await Article.findOne(filter)
-    .populate('category', 'name slug color description')
+    .populate('category', 'name slug color description imageUrl')
     .populate('author', 'name slug avatar bio socialLinks');
 
   if (!article) {
@@ -216,7 +216,7 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
     .sort({ publishedAt: -1 })
     .skip(skip)
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
   
   const authorMap = await loadTranslationAuthorMap(articles);
@@ -303,7 +303,7 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
     .sort({ updatedAt: -1, createdAt: -1 })
     .skip(skip)
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const transformedArticles = articles.map(article => {
@@ -585,7 +585,7 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
   const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ views: -1, publishedAt: -1 })
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const authorMap = await loadTranslationAuthorMap(articles);
@@ -629,7 +629,7 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
   const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ views: -1, likes: -1, publishedAt: -1 })
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const authorMap = await loadTranslationAuthorMap(articles);
@@ -702,7 +702,7 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
   const tagSet = new Set(sourceTags);
 
   const populateOpts = [
-    { path: 'category', select: 'name slug color baseSlug defaultLanguage translations' },
+    { path: 'category', select: 'name slug color imageUrl baseSlug defaultLanguage translations' },
     { path: 'author', select: 'name slug avatar baseSlug defaultLanguage translations' },
   ];
 
@@ -820,7 +820,7 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
   const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ publishedAt: -1 })
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const authorMap = await loadTranslationAuthorMap(articles);
@@ -861,7 +861,7 @@ exports.getFeaturedArticle = asyncHandler(async (req, res) => {
   const articles = await Article.find({ ...baseQuery, ...translationTitleFilter(language) })
     .sort({ publishedAt: -1 })
     .limit(limit)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   const authorMap = await loadTranslationAuthorMap(articles);
@@ -1019,7 +1019,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
   await authorDoc.updateArticleCount();
   
   const populatedArticle = await Article.findById(article._id)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   if (article.published) {
@@ -1256,7 +1256,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   }
   
   const populatedArticle = await Article.findById(article._id)
-    .populate('category', 'name slug color')
+    .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
   if (article.published) {

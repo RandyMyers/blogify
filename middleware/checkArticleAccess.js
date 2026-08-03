@@ -11,7 +11,7 @@ const AUTHOR_POPULATE = {
 
 const CATEGORY_POPULATE = {
   path: 'category',
-  select: 'name slug color baseSlug defaultLanguage translations description',
+  select: 'name slug color baseSlug defaultLanguage translations description imageUrl',
 };
 
 /**

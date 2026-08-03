@@ -106,6 +106,7 @@ const formatPopulatedCategory = (category, language) => {
     slug,
     color: base.color,
     description,
+    imageUrl: base.imageUrl || '',
   };
 };
 
