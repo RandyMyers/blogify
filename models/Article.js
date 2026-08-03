@@ -32,6 +32,8 @@ const translationSchema = new mongoose.Schema({
   ogDescription: { type: String, maxlength: 200, trim: true, default: '' },
   twitterTitle: { type: String, maxlength: 70, trim: true, default: '' },
   twitterDescription: { type: String, maxlength: 200, trim: true, default: '' },
+  // Per-locale featured-image alt (image file stays shared on article.imageUrl)
+  imageAlt: { type: String, trim: true, maxlength: 300, default: '' },
   offers: { type: [articleOfferSchema], default: [] },
   // Locale-specific translator / local author (falls back to article.author)
   author: {

@@ -179,7 +179,7 @@ const transformArticleForPublic = (article, language, authorMap = {}, region = n
     excerpt: activeTranslation.excerpt,
     content: activeTranslation.content,
     imageUrl: article.imageUrl,
-    imageAlt: article.imageAlt || '',
+    imageAlt: activeTranslation.imageAlt || article.imageAlt || '',
     category: formatPopulatedCategory(article.category, language),
     author: resolveArticleAuthor(article, language, authorMap, regionCode),
     tags: article.tags,

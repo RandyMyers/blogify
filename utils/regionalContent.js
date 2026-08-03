@@ -164,6 +164,7 @@ function sanitizeRegionalTranslationsInput(raw = {}) {
       ogDescription: String(value.ogDescription || '').trim(),
       twitterTitle: String(value.twitterTitle || '').trim(),
       twitterDescription: String(value.twitterDescription || '').trim(),
+      imageAlt: String(value.imageAlt || '').trim(),
       offers: Array.isArray(value.offers) ? value.offers : [],
       author: value.author || null,
     };

@@ -29,7 +29,7 @@ function buildAnalyzerInput(body, siteUrl) {
     metaTitle: tr.metaTitle || '',
     metaDescription: tr.metaDescription || '',
     content: tr.content || body.content || [],
-    imageAlt: body.imageAlt || '',
+    imageAlt: tr.imageAlt || body.imageAlt || '',
     siteUrl: siteUrl || process.env.CLIENT_URL || 'https://bloomwik.com',
     tags: body.tags || [],
     categoryName: body.categoryName || '',
@@ -54,7 +54,7 @@ function buildAnalyzerInputFromArticle(article, lang) {
     metaTitle: tr.metaTitle || '',
     metaDescription: tr.metaDescription || '',
     content: tr.content || article.content || [],
-    imageAlt: article.imageAlt || '',
+    imageAlt: tr.imageAlt || article.imageAlt || '',
     siteUrl: process.env.CLIENT_URL || 'https://bloomwik.com',
     tags: article.tags || [],
   };
