@@ -1,3 +1,9 @@
+const {
+  resolveArticleContentForRegion,
+  preferredRegionForLanguage,
+} = require('./regionalContent');
+const { getSlugForRegion } = require('./regionSlug');
+
 const formatPopulatedAuthor = (author, language) => {
   if (!author) return null;
   if (typeof author === 'string') return null;
@@ -23,12 +29,19 @@ const getTranslationAuthorId = (translation) => {
 
 /**
  * Prefer locale translation author when set; otherwise article-level author.
+ * When a regional override is present, prefer its author field.
  */
-const resolveArticleAuthor = (article, language, authorMap = {}) => {
-  const translation =
-    (typeof article.getTranslation === 'function'
-      ? article.getTranslation(language)
-      : article.translations?.[language]) || null;
+const resolveArticleAuthor = (article, language, authorMap = {}, regionCode = null) => {
+  let translation = null;
+  if (regionCode) {
+    translation = resolveArticleContentForRegion(article, regionCode).translation;
+  }
+  if (!translation) {
+    translation =
+      (typeof article.getTranslation === 'function'
+        ? article.getTranslation(language)
+        : article.translations?.[language]) || null;
+  }
   const trAuthorId = getTranslationAuthorId(translation);
   if (trAuthorId) {
     if (translation.author?.name) {
@@ -47,12 +60,27 @@ const collectTranslationAuthorIds = (articles) => {
   list.forEach((article) => {
     if (!article) return;
     let trs = article.translations;
-    if (!trs) return;
-    if (typeof trs.toObject === 'function') trs = trs.toObject();
-    Object.values(trs).forEach((tr) => {
-      const id = getTranslationAuthorId(tr);
-      if (id) ids.add(id);
-    });
+    if (trs) {
+      if (typeof trs.toObject === 'function') trs = trs.toObject();
+      Object.values(trs).forEach((tr) => {
+        const id = getTranslationAuthorId(tr);
+        if (id) ids.add(id);
+      });
+    }
+    let regional = article.regionalTranslations;
+    if (regional) {
+      if (regional instanceof Map) {
+        regional.forEach((tr) => {
+          const id = getTranslationAuthorId(tr);
+          if (id) ids.add(id);
+        });
+      } else if (typeof regional === 'object') {
+        Object.values(regional).forEach((tr) => {
+          const id = getTranslationAuthorId(tr);
+          if (id) ids.add(id);
+        });
+      }
+    }
   });
   return [...ids];
 };
@@ -128,24 +156,32 @@ const getExactTranslation = (article, language) => {
   return tr;
 };
 
-const transformArticleForPublic = (article, language, authorMap = {}) => {
+const transformArticleForPublic = (article, language, authorMap = {}, region = null) => {
   // Listings must show the requested locale only (no silent fallback to default language).
-  const activeTranslation = getExactTranslation(article, language);
+  const regionCode = region || preferredRegionForLanguage(language);
+  const resolved = resolveArticleContentForRegion(article, regionCode);
+  const activeTranslation =
+    resolved.isRegionalOverride && resolved.translation
+      ? resolved.translation
+      : getExactTranslation(article, language);
+
   if (!activeTranslation) {
     return null;
   }
 
+  const slug = getSlugForRegion(article, regionCode) || activeTranslation.slug;
+
   return {
     _id: article._id,
     baseSlug: article.baseSlug,
-    slug: activeTranslation.slug,
+    slug,
     title: activeTranslation.title,
     excerpt: activeTranslation.excerpt,
     content: activeTranslation.content,
     imageUrl: article.imageUrl,
     imageAlt: article.imageAlt || '',
     category: formatPopulatedCategory(article.category, language),
-    author: resolveArticleAuthor(article, language, authorMap),
+    author: resolveArticleAuthor(article, language, authorMap, regionCode),
     tags: article.tags,
     publishedAt: article.publishedAt,
     views: article.views,

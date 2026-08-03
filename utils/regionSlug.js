@@ -1,5 +1,10 @@
 const { LANG_PREFERRED_REGION } = require('./canonicalUrl');
 const { DEFAULT_REGION_LANGUAGES, REGION_CODES } = require('../constants/regions');
+const {
+  getRegionalTranslation,
+  hasRegionalTranslation,
+  normalizeRegionalTranslationsMap,
+} = require('./regionalContent');
 
 const SUPPORTED_LANGUAGES = ['en', 'fr', 'es', 'de', 'it', 'pt', 'sv', 'fi', 'da', 'no', 'nl'];
 
@@ -48,6 +53,9 @@ function getSlugForRegion(article, regionCode) {
   const map = normalizeRegionSlugMap(article.regionSlugs);
   if (map[code]) return map[code];
 
+  const regional = getRegionalTranslation(article, code);
+  if (regional?.slug) return regional.slug;
+
   const lang = languageForRegion(code, article);
   return getLanguageSlug(article, lang);
 }
@@ -65,6 +73,10 @@ function collectArticleSlugs(article) {
 
   Object.values(normalizeRegionSlugMap(article?.regionSlugs)).forEach((slug) => {
     if (slug) slugs.add(slug);
+  });
+
+  Object.values(normalizeRegionalTranslationsMap(article?.regionalTranslations)).forEach((block) => {
+    if (block?.slug) slugs.add(block.slug);
   });
 
   return slugs;
@@ -91,7 +103,12 @@ function getHreflangSlugForRegion(article, regionCode) {
   const explicit = normalizeRegionSlugMap(article.regionSlugs)[code];
   if (explicit) return explicit;
 
+  const regional = getRegionalTranslation(article, code);
+  if (regional?.slug) return regional.slug;
+
   const lang = languageForRegion(code, article);
+  const preferred = LANG_PREFERRED_REGION[lang] || 'US';
+  if (code !== preferred) return '';
   if (!hasTranslation(article, lang)) return '';
 
   return article.translations?.[lang]?.slug || '';
@@ -112,7 +129,15 @@ function shouldEmitArticleHreflang(hreflangRegions, article) {
   if (languages.size > 1) return true;
 
   const explicitSlugs = normalizeRegionSlugMap(article?.regionSlugs);
-  return Object.keys(explicitSlugs).some((code) => {
+  const hasSecondaryExplicit = Object.keys(explicitSlugs).some((code) => {
+    const lang = languageForRegion(code, article);
+    const preferred = LANG_PREFERRED_REGION[lang] || 'US';
+    return normalizeRegionCode(code) !== preferred;
+  });
+  if (hasSecondaryExplicit) return true;
+
+  const regional = normalizeRegionalTranslationsMap(article?.regionalTranslations);
+  return Object.keys(regional).some((code) => {
     const lang = languageForRegion(code, article);
     const preferred = LANG_PREFERRED_REGION[lang] || 'US';
     return normalizeRegionCode(code) !== preferred;
@@ -121,8 +146,9 @@ function shouldEmitArticleHreflang(hreflangRegions, article) {
 
 /**
  * Regions that qualify for article hreflang alternates.
- * Includes a market only when its language has a real translation and either:
+ * Includes a market when:
  * - it is the preferred region for that language (e.g. US for English), or
+ * - it has a regional content override (e.g. Canada-localized English), or
  * - an explicit country slug was saved in admin (e.g. CA for en-CA).
  */
 function buildArticleHreflangRegions(article, regions = [], includeRegionalVariants = true) {
@@ -140,14 +166,15 @@ function buildArticleHreflangRegions(article, regions = [], includeRegionalVaria
       if (!articleAvailableInRegion(article, code)) return;
 
       const lang = String(region.defaultLanguage || languageForRegion(code, article)).toLowerCase();
-      if (!hasTranslation(article, lang)) return;
-
+      const preferred = LANG_PREFERRED_REGION[lang] || 'US';
+      const hasRegional = hasRegionalTranslation(article, code);
       const explicitSlug = normalizeRegionSlugMap(article?.regionSlugs)[code];
+
+      if (!hasRegional && !hasTranslation(article, lang)) return;
+      if (!hasRegional && !explicitSlug && code !== preferred) return;
+
       const slug = getHreflangSlugForRegion(article, code);
       if (!slug) return;
-
-      const preferred = LANG_PREFERRED_REGION[lang] || 'US';
-      if (!explicitSlug && code !== preferred) return;
 
       result[code] = {
         slug,
@@ -328,4 +355,6 @@ module.exports = {
   buildStaticHreflangLinks,
   buildAvailableRegions,
   sanitizeRegionSlugsInput,
+  hasRegionalTranslation,
+  getRegionalTranslation,
 };

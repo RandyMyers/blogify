@@ -26,7 +26,7 @@ async function buildSitemapData(tenantId) {
   const [articles, categories, authors, regions] = await Promise.all([
     flags.enabled && flags.includeArticles
       ? Article.find({ published: true, ...tenantFilter })
-          .select('baseSlug defaultLanguage translations regionSlugs updatedAt publishedAt regionRestrictions isGlobal')
+          .select('baseSlug defaultLanguage translations regionSlugs regionalTranslations updatedAt publishedAt regionRestrictions isGlobal')
           .sort({ updatedAt: -1 })
           .limit(50000)
           .lean()

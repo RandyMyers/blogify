@@ -160,6 +160,10 @@ exports.validateCreateArticle = [
     .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('Region slug must be between 1 and 200 characters'),
+  body('regionalTranslations')
+    .optional()
+    .isObject()
+    .withMessage('regionalTranslations must be an object'),
   body('tags')
     .optional()
     .isArray()
@@ -359,6 +363,10 @@ exports.validateUpdateArticle = [
     .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('Region slug must be between 1 and 200 characters'),
+  body('regionalTranslations')
+    .optional()
+    .isObject()
+    .withMessage('regionalTranslations must be an object'),
   body('tags')
     .optional()
     .isArray()

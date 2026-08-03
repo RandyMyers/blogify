@@ -77,6 +77,13 @@ const articleSchema = new mongoose.Schema({
     of: String,
     default: undefined,
   },
+  // Per-country content overrides (e.g. Canada English vs US English).
+  // Preferred markets (US for en, FR for fr, …) stay in translations[lang].
+  regionalTranslations: {
+    type: Map,
+    of: translationSchema,
+    default: undefined,
+  },
   
   // Translations object - supports multiple languages
   translations: {
@@ -290,6 +297,22 @@ articleSchema.pre('save', function(next) {
       this.translations[lang].slug = generateSlug(this.translations[lang].title);
     }
   });
+
+  // Generate slugs for regional content overrides
+  if (this.regionalTranslations) {
+    const entries =
+      this.regionalTranslations instanceof Map
+        ? [...this.regionalTranslations.entries()]
+        : Object.entries(this.regionalTranslations);
+    entries.forEach(([code, block]) => {
+      if (block?.title && !block.slug) {
+        block.slug = generateSlug(block.title);
+        if (this.regionalTranslations instanceof Map) {
+          this.regionalTranslations.set(code, block);
+        }
+      }
+    });
+  }
   
   // Legacy slug handling (for backward compatibility)
   if (!this.slug) {

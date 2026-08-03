@@ -13,6 +13,12 @@ const {
   buildAvailableRegions,
   sanitizeRegionSlugsInput,
 } = require('../utils/regionSlug');
+const {
+  resolveArticleContentForRegion,
+  sanitizeRegionalTranslationsInput,
+  applyRegionalCanonicalUrls,
+} = require('../utils/regionalContent');
+const { buildArticleCanonicalUrlForRegion, applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
 const { buildTranslationSeo, normalizeKeywordList } = require('../utils/translationSeo');
 
 const FOLLOW_BLOCKLIST = new Set(['nofollow', 'ugc', 'sponsored']);
@@ -85,7 +91,6 @@ const normalizeTranslationsForLinks = (translations) => {
 const { formatPopulatedAuthor, formatPopulatedCategory, transformArticleForPublic: transformArticlePublic, resolveArticleAuthor, collectTranslationAuthorIds, translationTitleFilter, resolveListingLanguage } = require('../utils/publicContent');
 const { notifyArticlePublished } = require('../utils/indexNow');
 const { getOrCreateSeoSettings } = require('./seoSettingsController');
-const { applyCanonicalUrlsToPayload } = require('../utils/canonicalUrl');
 const {
   analyzeArticlePayload,
   applySeoScoreToDocument,
@@ -115,13 +120,17 @@ function serializeOffers(offers = []) {
 const resolveRequestLanguage = (req) =>
   (req.query.lang || req.language || 'en').toLowerCase();
 
-const transformArticleForPublic = (article, language, authorMap = {}) => {
-  const base = transformArticlePublic(article, language, authorMap);
+const transformArticleForPublic = (article, language, authorMap = {}, region = 'US') => {
+  const base = transformArticlePublic(article, language, authorMap, region);
   if (!base) return null;
-  const translation = article.getTranslation(language) || article.getTranslation(article.defaultLanguage);
+  const { translation } = resolveArticleContentForRegion(article, region);
+  const fallback =
+    (typeof article.getTranslation === 'function'
+      ? article.getTranslation(language) || article.getTranslation(article.defaultLanguage)
+      : null) || null;
   return {
     ...base,
-    seo: buildTranslationSeo(translation),
+    seo: buildTranslationSeo(translation || fallback),
     twitterCard: article.twitterCard || 'summary_large_image',
     articleSchema: {
       publisher: article.articleSchema?.publisher || '',
@@ -212,7 +221,7 @@ exports.getAllArticles = asyncHandler(async (req, res) => {
   
   const authorMap = await loadTranslationAuthorMap(articles);
   const transformedArticles = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, language, authorMap, region))
     .filter((article) => article !== null);
   
   const total = await Article.countDocuments(query);
@@ -383,13 +392,11 @@ exports.getAllArticlesAdmin = asyncHandler(async (req, res) => {
 exports.getArticleBySlug = asyncHandler(async (req, res) => {
   // Article should already be attached by checkArticleAccess middleware
   const article = req.article;
-  const language = resolveRequestLanguage(req);
   const region = req.query.region || req.region || 'US';
   
-  // Get translation for current language
-  const translation = article.getTranslation(language);
-  const defaultTranslation = article.getTranslation(article.defaultLanguage);
-  const activeTranslation = translation || defaultTranslation;
+  // Prefer regional content override when present (e.g. Canada English ≠ US English)
+  const resolved = resolveArticleContentForRegion(article, region);
+  const activeTranslation = resolved.translation;
   
   if (!activeTranslation || !activeTranslation.title) {
     return res.status(404).json({
@@ -408,8 +415,8 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
   
   // Get formatted author & category (populated in checkArticleAccess)
   const authorMap = await loadTranslationAuthorMap(article);
-  const authorData = resolveArticleAuthor(article, language, authorMap);
-  const categoryData = formatPopulatedCategory(article.category, language);
+  const authorData = resolveArticleAuthor(article, resolved.language, authorMap, region);
+  const categoryData = formatPopulatedCategory(article.category, resolved.language);
   
   // Build available translations object
   const availableTranslations = {};
@@ -449,7 +456,7 @@ exports.getArticleBySlug = asyncHandler(async (req, res) => {
         regionCode: region,
         slug: regionSlug,
       }),
-      language: language,
+      language: resolved.language,
       offers: serializeOffers(activeTranslation.offers),
       availableTranslations: availableTranslations,
       availableRegions: buildAvailableRegions(article, regions, seoSettings.hreflang?.includeRegionalVariants !== false),
@@ -583,7 +590,7 @@ exports.getTopArticles = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, language, authorMap, region))
     .filter(Boolean);
 
   res.json({
@@ -627,7 +634,7 @@ exports.getPopularArticles = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, language, authorMap, region))
     .filter(Boolean);
 
   res.json({
@@ -777,7 +784,7 @@ exports.getSimilarArticles = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(ranked);
   const data = ranked
-    .map((article) => transformArticleForPublic(article, listLanguage, authorMap))
+    .map((article) => transformArticleForPublic(article, listLanguage, authorMap, region))
     .filter(Boolean);
 
   res.json({
@@ -818,7 +825,7 @@ exports.getTrendingArticles = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, language, authorMap, region))
     .filter(Boolean);
 
   res.json({
@@ -859,7 +866,7 @@ exports.getFeaturedArticle = asyncHandler(async (req, res) => {
 
   const authorMap = await loadTranslationAuthorMap(articles);
   const data = articles
-    .map((article) => transformArticleForPublic(article, language, authorMap))
+    .map((article) => transformArticleForPublic(article, language, authorMap, region))
     .filter(Boolean);
 
   res.json({
@@ -885,6 +892,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     isGlobal,
     regionRestrictions,
     regionSlugs,
+    regionalTranslations,
     translations,
     // Legacy fields (for backward compatibility)
     title,
@@ -959,6 +967,14 @@ exports.createArticle = asyncHandler(async (req, res) => {
     seoSettings.siteUrl
   );
 
+  const cleanedRegional = applyRegionalCanonicalUrls(
+    sanitizeRegionalTranslationsInput(
+      normalizeTranslationsForLinks(regionalTranslations || {})
+    ),
+    seoSettings.siteUrl,
+    buildArticleCanonicalUrlForRegion
+  );
+
   // Build article data with multilingual support
   const articleData = {
     ...scopedFilter(req),
@@ -968,6 +984,7 @@ exports.createArticle = asyncHandler(async (req, res) => {
     isGlobal: isGlobal !== undefined ? isGlobal : true,
     regionRestrictions: isGlobal ? [] : (regionRestrictions || []),
     regionSlugs: sanitizeRegionSlugsInput(regionSlugs || {}),
+    regionalTranslations: cleanedRegional,
     translations: canonicalPayload.translations || normalizedTranslations,
     // Legacy fields (for backward compatibility)
     title: title || translations?.[defLang]?.title || '',
@@ -1049,6 +1066,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     isGlobal,
     regionRestrictions,
     regionSlugs,
+    regionalTranslations,
     translations,
     // Legacy fields
     title,
@@ -1086,6 +1104,16 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   if (regionSlugs !== undefined) {
     article.regionSlugs = sanitizeRegionSlugsInput(regionSlugs);
     article.markModified('regionSlugs');
+  }
+  if (regionalTranslations !== undefined) {
+    article.regionalTranslations = applyRegionalCanonicalUrls(
+      sanitizeRegionalTranslationsInput(
+        normalizeTranslationsForLinks(regionalTranslations)
+      ),
+      seoSettings.siteUrl,
+      buildArticleCanonicalUrlForRegion
+    );
+    article.markModified('regionalTranslations');
   }
   if (translations !== undefined) {
     const normalizedTranslations = normalizeTranslationsForLinks(translations);

@@ -148,7 +148,7 @@ const generateArticlesSitemap = async (req, res) => {
     const articles = await Article.find({ 
       published: true  // Fixed: use published field (boolean) instead of status
     })
-    .select('baseSlug defaultLanguage translations updatedAt regionRestrictions isGlobal regionSlugs')
+    .select('baseSlug defaultLanguage translations updatedAt regionRestrictions isGlobal regionSlugs regionalTranslations')
     .sort({ updatedAt: -1 })
     .limit(50000); // Google's limit
     

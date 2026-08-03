@@ -11,6 +11,7 @@ const {
   stripHtml,
 } = require('./prerenderMeta');
 const { buildArticleHreflangLinks, buildTranslationEntityHreflangLinks, buildArticleHreflangRegions, buildStaticHreflangLinks } = require('./regionSlug');
+const { resolveArticleContentForRegion } = require('./regionalContent');
 
 function getSlugForLang(entity, lang) {
   const tr = entity.translations?.[lang];
@@ -147,7 +148,8 @@ async function buildPrerenderPages(tenantId) {
       if (!articleAvailableInRegion(article, regionCode)) return;
 
       const lang = info.language;
-      const translation = article.translations?.[lang];
+      const resolved = resolveArticleContentForRegion(article, regionCode);
+      const translation = resolved.translation;
       if (!translation?.title) return;
 
       const slug = info.slug;
