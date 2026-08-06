@@ -25,6 +25,7 @@
     "assign:articles-by-tenant": "node scripts/assignArticlesByTenant.js",
     "backfill:tenant-scope": "node scripts/backfillTenantScopedRecords.js",
     "seed:bloomwik-seo": "node scripts/seedBloomwikSeo.js",
+    "indexnow:submit": "node scripts/submitIndexNowBulk.js",
     "backfill:article-seo": "node scripts/backfillArticleSeo.js",
     "backfill:article-canonicals": "node scripts/backfillArticleCanonicalUrls.js",
     "sync:seo-settings": "node scripts/syncSeoSettingsFromSources.js",

@@ -38,7 +38,7 @@ const BLOOMWIK_SEO = {
   },
   indexNow: {
     enabled: true,
-    apiKey: process.env.INDEXNOW_API_KEY || '',
+    apiKey: process.env.INDEXNOW_API_KEY || '695cc2adcee54cb485d9b240c64a04cf',
   },
   searchConsole: {
     autoSubmitSitemap: false,

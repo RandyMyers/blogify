@@ -25,6 +25,8 @@ CLOUDINARY_API_KEY=your-api-key
 CLOUDINARY_API_SECRET=your-api-secret
 CLIENT_URL=https://bloomwik.com
 ADMIN_URL=https://your-admin-url.com
+INDEXNOW_API_KEY=695cc2adcee54cb485d9b240c64a04cf
+INDEXNOW_ENABLED=true
 NODE_ENV=production
 ```
 

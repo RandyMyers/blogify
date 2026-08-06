@@ -1057,6 +1057,7 @@ exports.updateArticle = asyncHandler(async (req, res) => {
   // Snapshot current slugs before applying updates so renamed slugs can keep
   // redirecting (301) to the new canonical URL.
   const previousSlugSnapshot = collectArticleSlugs(article);
+  const wasPublished = Boolean(article.published);
   
   // Update fields
   const {
@@ -1259,7 +1260,8 @@ exports.updateArticle = asyncHandler(async (req, res) => {
     .populate('category', 'name slug color imageUrl')
     .populate('author', 'name slug avatar baseSlug defaultLanguage translations');
 
-  if (article.published) {
+  // Notify on publish/update and when unpublishing so engines re-crawl.
+  if (article.published || wasPublished) {
     setImmediate(() => {
       notifyArticlePublished(article, { tenantId: req.tenantId }).catch((err) => {
         logger.warn('IndexNow notify failed (update):', err.message);
@@ -1305,7 +1307,9 @@ exports.deleteArticle = asyncHandler(async (req, res) => {
   
   const categoryId = article.category;
   const authorId = article.author;
-  
+  const shouldNotifyIndexNow = Boolean(article.published);
+  const articleSnapshot = article.toObject ? article.toObject() : article;
+
   await article.deleteOne();
   
   // Update counts
@@ -1314,6 +1318,14 @@ exports.deleteArticle = asyncHandler(async (req, res) => {
   
   const authorDoc = await Author.findOne({ _id: authorId });
   if (authorDoc) await authorDoc.updateArticleCount();
+
+  if (shouldNotifyIndexNow) {
+    setImmediate(() => {
+      notifyArticlePublished(articleSnapshot, { tenantId: req.tenantId }).catch((err) => {
+        logger.warn('IndexNow notify failed (delete):', err.message);
+      });
+    });
+  }
   
   res.json({
     success: true,

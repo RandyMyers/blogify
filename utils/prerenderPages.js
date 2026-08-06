@@ -179,7 +179,9 @@ async function buildPrerenderPages(tenantId) {
         description: seo.metaDescription,
         keywords: pageKeywords,
         canonicalUrl: seo.canonicalUrl || absUrl(siteUrl, pagePath),
-        robots: (seo.robots || 'index,follow').replace(',', ', '),
+        robots: (seo.robots || 'index,follow').includes('noindex')
+          ? 'index, follow'
+          : (seo.robots || 'index,follow').replace(',', ', '),
         ogTitle: seo.ogTitle,
         ogDescription: seo.ogDescription,
         ogImage: seo.ogImage || article.imageUrl,

@@ -50,12 +50,27 @@ function plainTranslation(translation) {
   return translation;
 }
 
+function normalizePublicRobots(robots) {
+  const parts = String(robots || 'index,follow')
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean);
+
+  // Public article responses must remain indexable even if admin left noindex set.
+  if (!parts.length || parts.includes('noindex')) {
+    return 'index, follow';
+  }
+
+  const follow = parts.includes('nofollow') ? 'nofollow' : 'follow';
+  return `index, ${follow}`;
+}
+
 /**
  * Build public SEO from the active locale translation only.
  * Keywords / metaTitle / metaDescription never fall back to tags or other locales.
  */
 function buildTranslationSeo(translation, options = {}) {
-  const { siteUrl, regionCode, slug } = options;
+  const { siteUrl, regionCode, slug, forceIndexable = true } = options;
   const tr = plainTranslation(translation) || {};
   let canonicalUrl = tr.canonicalUrl || '';
 
@@ -68,13 +83,17 @@ function buildTranslationSeo(translation, options = {}) {
     });
   }
 
+  const robots = forceIndexable
+    ? normalizePublicRobots(tr.robots)
+    : String(tr.robots || 'index,follow').replace(/,/g, ', ').replace(/\s+/g, ' ').trim();
+
   return {
     metaTitle: tr.metaTitle || '',
     metaDescription: tr.metaDescription || '',
     keywords: normalizeKeywordList(tr.keywords),
     focusKeyword: tr.focusKeyword || '',
     canonicalUrl,
-    robots: tr.robots || 'index,follow',
+    robots,
     ogImage: tr.ogImage || '',
     ogTitle: tr.ogTitle || '',
     ogDescription: tr.ogDescription || '',
@@ -86,4 +105,5 @@ function buildTranslationSeo(translation, options = {}) {
 module.exports = {
   buildTranslationSeo,
   normalizeKeywordList,
+  normalizePublicRobots,
 };

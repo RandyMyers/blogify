@@ -1,6 +1,8 @@
 const SeoSettings = require('../models/SeoSettings');
+const Article = require('../models/Article');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { pingSearchEngines } = require('../utils/sitemapPing');
+const { buildArticlePublicUrls, submitUrlList } = require('../utils/indexNow');
 const {
   SEO_SETTINGS_DEFAULTS: DEFAULTS,
   getOrCreateSeoSettings: getOrCreateSettings,
@@ -107,6 +109,59 @@ exports.pingSitemap = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: result,
+  });
+});
+
+/**
+ * @route POST /api/admin/seo-settings/indexnow-submit
+ * Submit published article URLs (all locales) to IndexNow.
+ * Body: { limit?: number } — optional cap on articles (newest first).
+ */
+exports.submitIndexNow = asyncHandler(async (req, res) => {
+  if (!req.tenantId) {
+    return res.status(400).json({
+      success: false,
+      message: 'Select a tenant before submitting to IndexNow',
+    });
+  }
+
+  const doc = await getOrCreateSettings(req.tenantId);
+  const siteUrl = doc.siteUrl || DEFAULTS.siteUrl;
+  const limitRaw = Number(req.body?.limit);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 5000) : null;
+
+  let query = Article.find({ tenantId: req.tenantId, published: true }).sort({ updatedAt: -1 });
+  if (limit) query = query.limit(limit);
+  const articles = await query.lean();
+
+  const urlList = [];
+  articles.forEach((article) => {
+    urlList.push(...buildArticlePublicUrls(article, siteUrl));
+  });
+
+  const result = await submitUrlList(urlList, {
+    tenantId: req.tenantId,
+    clientUrl: siteUrl,
+  });
+
+  if (result.skipped) {
+    return res.status(400).json({
+      success: false,
+      message: result.reason || 'IndexNow skipped',
+      data: result,
+    });
+  }
+
+  res.json({
+    success: Boolean(result.ok),
+    message: result.ok
+      ? `Submitted ${result.urlCount} URL(s) — Bing HTTP ${result.bingStatus}, API HTTP ${result.apiStatus}`
+      : `IndexNow rejected — Bing HTTP ${result.bingStatus}, API HTTP ${result.apiStatus}`,
+    data: {
+      ...result,
+      articleCount: articles.length,
+      keyFileUrl: `${String(siteUrl).replace(/\/$/, '')}/${(doc.indexNow?.apiKey || process.env.INDEXNOW_API_KEY || '').trim()}.txt`,
+    },
   });
 });
 
