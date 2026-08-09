@@ -107,7 +107,13 @@ const checkArticleAccess = asyncHandler(async (req, res, next) => {
         const altTranslation = alternative.getTranslation(language);
         const altSlug = getSlugForRegion(alternative, region) || altTranslation?.slug || alternative.baseSlug;
         const regionPrefix = region === 'US' ? '' : `/${region.toLowerCase()}`;
-        return res.redirect(`${regionPrefix}/article/${altSlug}`);
+        // Return JSON for the SPA — HTTP redirects from the API confuse crawlers
+        // and are not useful for XHR article fetches.
+        return res.status(403).json({
+          success: false,
+          message: 'Article not available in your region',
+          redirectTo: `${regionPrefix}/article/${altSlug}`,
+        });
       }
 
       return res.status(403).json({
