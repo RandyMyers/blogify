@@ -27,6 +27,13 @@ CLIENT_URL=https://bloomwik.com
 ADMIN_URL=https://your-admin-url.com
 INDEXNOW_API_KEY=695cc2adcee54cb485d9b240c64a04cf
 INDEXNOW_ENABLED=true
+EMAIL_FROM=no-reply@bloomwik.com
+EMAIL_FROM_NAME=Bloomwik
+HOST=smtp.hostinger.com
+HPORT=465
+SECURE=true
+USER=no-reply@bloomwik.com
+PASSWORD=your-mailbox-password
 NODE_ENV=production
 ```
 
@@ -37,6 +44,7 @@ LOG_LEVEL=info
 ENABLE_JOBS=false
 USE_IP_API=false
 JWT_EXPIRES_IN=7d
+EMAIL_SEND_IN_DEV=true
 ```
 
 ### Using Vercel CLI (optional)

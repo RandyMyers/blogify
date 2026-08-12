@@ -382,6 +382,7 @@ app.use('/api/tenants', require('./routes/tenantRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/admin/readers', require('./routes/readerAdminRoutes'));
 app.use('/api/admin/seo-settings', require('./routes/seoSettingsRoutes'));
+app.use('/api/admin/email-settings', require('./routes/emailSettingsRoutes'));
 app.use('/api/seo', require('./routes/publicSeoRoutes'));
 
 app.use('/api/prerender-data', require('./routes/prerenderDataRoutes'));

@@ -11,6 +11,7 @@ const {
   sendReaderVerificationEmail,
   sendReaderPasswordResetEmail,
   isEmailConfigured,
+  resolveConfig,
 } = require('../utils/emailService');
 
 const formatReader = (user) => ({
@@ -24,14 +25,19 @@ const formatReader = (user) => ({
 
 async function issueVerificationToken(user) {
   const rawToken = generateSecureToken();
+  const config = await resolveConfig();
+  const hours = config.verificationExpiryHours || 24;
   user.emailVerificationToken = hashToken(rawToken);
+  user.emailVerificationExpires = new Date(Date.now() + hours * 60 * 60 * 1000);
   await user.save();
+
+  let emailResult = { sent: false };
   try {
-    await sendReaderVerificationEmail(user, rawToken);
-  } catch {
-    /* registration still succeeds; user can resend from account */
+    emailResult = await sendReaderVerificationEmail(user, rawToken);
+  } catch (err) {
+    emailResult = { sent: false, reason: err.message };
   }
-  return rawToken;
+  return { rawToken, emailResult };
 }
 
 async function resolveUniqueUsername(displayName) {
@@ -92,17 +98,21 @@ exports.registerReader = asyncHandler(async (req, res) => {
     emailVerified: false,
   });
 
-  await issueVerificationToken(user);
+  const { emailResult } = await issueVerificationToken(user);
 
   const token = generateToken(user._id);
+  const emailReady = await isEmailConfigured();
 
   res.status(201).json({
     success: true,
     token,
     user: formatReader(user),
-    message: isEmailConfigured()
+    emailSent: Boolean(emailResult?.sent),
+    message: emailResult?.sent
       ? 'Account created. Please check your email to verify your address.'
-      : 'Account created. Verify your email from your account page when email is configured.',
+      : emailReady
+        ? 'Account created, but we could not send the verification email. You can resend it from your account page.'
+        : 'Account created. Email delivery is not configured on the server yet — ask an admin to set up SMTP.',
   });
 });
 
@@ -299,8 +309,16 @@ exports.verifyReaderEmail = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid or expired verification link' });
   }
 
+  if (user.emailVerificationExpires && user.emailVerificationExpires.getTime() < Date.now()) {
+    return res.status(400).json({
+      success: false,
+      message: 'This verification link has expired. Please request a new one from your account page.',
+    });
+  }
+
   user.emailVerified = true;
   user.emailVerificationToken = null;
+  user.emailVerificationExpires = null;
   await user.save();
 
   res.json({
@@ -321,13 +339,17 @@ exports.resendReaderVerification = asyncHandler(async (req, res) => {
     return res.json({ success: true, message: 'Email is already verified' });
   }
 
-  await issueVerificationToken(user);
+  const { emailResult } = await issueVerificationToken(user);
+  const emailReady = await isEmailConfigured();
 
   res.json({
     success: true,
-    message: isEmailConfigured()
-      ? 'Verification email sent. Please check your inbox.'
-      : 'Verification email queued (check server logs if email is not configured).',
+    emailSent: Boolean(emailResult?.sent),
+    message: emailResult?.sent
+      ? 'Verification email sent. Please check your inbox (and spam folder).'
+      : emailReady
+        ? 'Could not send verification email. Please try again shortly.'
+        : 'Email delivery is not configured on the server yet.',
   });
 });
 
@@ -352,8 +374,20 @@ exports.forgotReaderPassword = asyncHandler(async (req, res) => {
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
     await user.save();
     try {
-      await sendReaderPasswordResetEmail(user, rawToken);
-    } catch {
+      const emailResult = await sendReaderPasswordResetEmail(user, rawToken);
+      if (!emailResult?.sent) {
+        const logger = require('../utils/logger');
+        logger.warn('[auth] password reset email not sent', {
+          email: user.email,
+          reason: emailResult?.reason,
+        });
+      }
+    } catch (err) {
+      const logger = require('../utils/logger');
+      logger.error('[auth] password reset email failed', {
+        email: user.email,
+        error: err.message,
+      });
       /* still return generic success to avoid leaking account existence */
     }
   }
