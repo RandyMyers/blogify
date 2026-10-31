@@ -192,6 +192,19 @@ const getLocationFromIP = async (ip) => {
       longitude: null,
       timezone: null
     };
+
+    const getCountryCodeFromIP = (ip) => {
+      if (!ip || !geoip) {
+        return null;
+      }
+
+      try {
+        return geoip.lookup(ip)?.country || null;
+      } catch (error) {
+        logger.warn('Error resolving country for ad event', { error: error.message });
+        return null;
+      }
+    };
   }
   
   // Method 1: Use geoip-lite (offline, fast, basic data)
@@ -363,7 +376,7 @@ module.exports = {
   parseUserAgent,
   isBot,
   getSessionId,
-  getLocationFromIP
+  getLocationFromIP,
+  getCountryCodeFromIP
 };
-
 

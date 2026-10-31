@@ -4,6 +4,36 @@ const mongoose = require('mongoose');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { scopedFilter } = require('../utils/tenantScope');
 const { selectAds, selectRandomAd } = require('../utils/adSelector');
+const { getCountryCodeFromIP } = require('../middleware/visitorTracking');
+const { normalizeCountryCode } = require('../utils/adCountry');
+
+const getRequestCountryCode = async (req) => {
+  const ip = typeof req.ip === 'string' ? req.ip.replace(/^::ffff:/, '') : '';
+  if (
+    !ip ||
+    ip === '::1' ||
+    ip.startsWith('127.') ||
+    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
+  ) {
+    return null;
+  }
+
+  return normalizeCountryCode(getCountryCodeFromIP(ip));
+};
+
+const getPagePath = (value) => {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+    return null;
+  }
+
+  try {
+    return new URL(value, 'https://blogify.invalid').pathname.slice(0, 500);
+  } catch (error) {
+    return null;
+  }
+};
 
 /**
  * @desc    Get active ads for a placement (public)
@@ -29,10 +59,12 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
   }
   
   // Default values
-  const targetRegion = region || 'US';
+  const isPopup = placement === 'popup';
+  const targetRegion = isPopup ? await getRequestCountryCode(req) : (region || 'US');
   const targetLanguage = language || 'en';
   const targetCategory = category || null;
-  const limit = parseInt(req.query.limit) || 5;
+  const requestedLimit = parseInt(req.query.limit, 10) || 5;
+  const limit = isPopup ? 1 : Math.min(Math.max(requestedLimit, 1), 20);
   
   // Get ads
   const ads = await selectAds(placement, targetRegion, targetLanguage, targetCategory, limit, req.tenantId);
@@ -233,10 +265,18 @@ exports.trackImpression = asyncHandler(async (req, res) => {
     });
   }
   
-  // Increment impressions
-  ad.impressions = (ad.impressions || 0) + 1;
-  await ad.save();
-  await AdEvent.create({ adId: ad._id, type: 'impression', tenantId: req.tenantId });
+  const countryCode = await getRequestCountryCode(req);
+  const pagePath = getPagePath(req.body?.pagePath);
+  await Promise.all([
+    Ad.updateOne({ _id: ad._id, ...scopedFilter(req) }, { $inc: { impressions: 1 } }),
+    AdEvent.create({
+      adId: ad._id,
+      type: 'impression',
+      tenantId: req.tenantId,
+      countryCode,
+      pagePath,
+    }),
+  ]);
   
   res.json({
     success: true,
@@ -259,10 +299,18 @@ exports.trackClick = asyncHandler(async (req, res) => {
     });
   }
   
-  // Increment clicks
-  ad.clicks = (ad.clicks || 0) + 1;
-  await ad.save();
-  await AdEvent.create({ adId: ad._id, type: 'click', tenantId: req.tenantId });
+  const countryCode = await getRequestCountryCode(req);
+  const pagePath = getPagePath(req.body?.pagePath);
+  await Promise.all([
+    Ad.updateOne({ _id: ad._id, ...scopedFilter(req) }, { $inc: { clicks: 1 } }),
+    AdEvent.create({
+      adId: ad._id,
+      type: 'click',
+      tenantId: req.tenantId,
+      countryCode,
+      pagePath,
+    }),
+  ]);
   
   res.json({
     success: true,
@@ -330,6 +378,38 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
     if (row._id.type === 'click') clicksByDay.push(point);
   });
 
+  const countryRows = await AdEvent.aggregate([
+    { $match: { ...eventMatch, countryCode: { $type: 'string' } } },
+    {
+      $group: {
+        _id: { countryCode: '$countryCode', type: '$type' },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { count: -1 } },
+  ]);
+
+  const countryTotals = new Map();
+  countryRows.forEach((row) => {
+    const countryCode = row._id.countryCode;
+    const totals = countryTotals.get(countryCode) || {
+      countryCode,
+      impressions: 0,
+      clicks: 0,
+    };
+    if (row._id.type === 'impression') totals.impressions = row.count;
+    if (row._id.type === 'click') totals.clicks = row.count;
+    countryTotals.set(countryCode, totals);
+  });
+  const countryBreakdown = [...countryTotals.values()]
+    .map((country) => ({
+      ...country,
+      ctr: country.impressions > 0
+        ? parseFloat(((country.clicks / country.impressions) * 100).toFixed(2))
+        : 0,
+    }))
+    .sort((a, b) => b.impressions - a.impressions);
+
   res.json({
     success: true,
     data: {
@@ -340,11 +420,8 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
       topAds,
       impressionsByDay,
       clicksByDay,
+      countryBreakdown,
       days,
     },
   });
 });
-
-
-
-

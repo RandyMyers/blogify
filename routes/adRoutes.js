@@ -15,9 +15,6 @@ const { protect, isAdmin } = require('../middleware/auth');
 
 // Public routes
 router.get('/', getActiveAds);
-router.get('/:id', getAdById);
-router.post('/:id/impression', trackImpression);
-router.post('/:id/click', trackClick);
 
 // Admin routes (protected)
 router.get('/admin/all', protect, isAdmin, getAllAds);
@@ -26,8 +23,12 @@ router.post('/admin', protect, isAdmin, createAd);
 router.put('/admin/:id', protect, isAdmin, updateAd);
 router.delete('/admin/:id', protect, isAdmin, deleteAd);
 
-module.exports = router;
+// Public routes with path parameters must follow the admin paths.
+router.get('/:id', getAdById);
+router.post('/:id/impression', trackImpression);
+router.post('/:id/click', trackClick);
 
+module.exports = router;
 
 
 

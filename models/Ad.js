@@ -117,8 +117,8 @@ const adSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Placement is required'],
     enum: {
-      values: ['header', 'sidebar', 'footer', 'inline', 'between_articles', 'article_sidebar'],
-      message: 'Placement must be one of: header, sidebar, footer, inline, between_articles, article_sidebar'
+      values: ['header', 'sidebar', 'footer', 'inline', 'between_articles', 'article_sidebar', 'popup'],
+      message: 'Placement must be one of: header, sidebar, footer, inline, between_articles, article_sidebar, popup'
     },
     index: true
   },
@@ -132,7 +132,8 @@ const adSchema = new mongoose.Schema({
   clickUrl: {
     type: String,
     required: [true, 'Click URL is required'],
-    trim: true
+    trim: true,
+    match: [/^https?:\/\/\S+$/i, 'Click URL must use HTTP or HTTPS']
   },
   imageUrl: {
     type: String,
@@ -277,7 +278,4 @@ adSchema.pre('save', function(next) {
 const Ad = mongoose.model('Ad', adSchema);
 
 module.exports = Ad;
-
-
-
 
