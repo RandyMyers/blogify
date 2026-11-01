@@ -64,7 +64,7 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
   const targetLanguage = language || 'en';
   const targetCategory = category || null;
   const requestedLimit = parseInt(req.query.limit, 10) || 5;
-  const limit = isPopup ? 1 : Math.min(Math.max(requestedLimit, 1), 20);
+  const limit = Math.min(Math.max(requestedLimit, 1), isPopup ? 10 : 20);
   
   // Get ads
   const ads = await selectAds(placement, targetRegion, targetLanguage, targetCategory, limit, req.tenantId);
