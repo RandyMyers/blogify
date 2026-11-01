@@ -185,7 +185,8 @@ const adSchema = new mongoose.Schema({
 adSchema.index({ tenantId: 1, placement: 1, status: 1, isActive: 1 });
 adSchema.index({ placement: 1, status: 1, isActive: 1 });
 adSchema.index({ startDate: 1, endDate: 1 });
-adSchema.index({ targetRegions: 1, targetLanguages: 1 });
+adSchema.index({ targetRegions: 1 });
+adSchema.index({ targetLanguages: 1 });
 adSchema.index({ priority: -1, position: 1 });
 
 // Virtual for click-through rate
@@ -278,4 +279,3 @@ adSchema.pre('save', function(next) {
 const Ad = mongoose.model('Ad', adSchema);
 
 module.exports = Ad;
-
