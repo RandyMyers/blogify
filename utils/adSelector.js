@@ -22,6 +22,12 @@ async function selectAds(placement, region = 'US', language = 'en', categoryId =
   
   // Build $and array for complex conditions
   const andConditions = [];
+
+  if (placement === 'popup') {
+    query.type = 'image_popup';
+  } else if (placement === 'notification') {
+    query.type = 'text_notification';
+  }
   
   // Date conditions: startDate must be <= now or null, endDate must be >= now or null
   andConditions.push({
@@ -40,13 +46,15 @@ async function selectAds(placement, region = 'US', language = 'en', categoryId =
   
   // Region targeting: if ad has no targetRegions (empty array), it targets all
   // Otherwise, it must include the requested region
-  if (region) {
+  if (region && region !== 'unknown') {
     andConditions.push({
       $or: [
         { targetRegions: { $size: 0 } }, // No targeting = all regions
         { targetRegions: region }
       ]
     });
+  } else {
+    andConditions.push({ targetRegions: { $size: 0 } });
   }
   
   // Language targeting: if ad has no targetLanguages (empty array), it targets all
@@ -91,29 +99,14 @@ async function selectAds(placement, region = 'US', language = 'en', categoryId =
   if (andConditions.length > 0) {
     query.$and = andConditions;
   }
-  
-  try {
-    const ads = await Ad.find(query)
-      .sort({ priority: -1, position: 1, createdAt: -1 })
-      .limit(limit)
-      .populate('targetCategories', 'name slug');
-    
-    // Additional filtering for targeting (double-check with model methods)
-    const filteredAds = ads.filter(ad => {
-      // Check if ad is currently active (considering dates and limits)
-      if (!ad.isCurrentlyActive()) {
-        return false;
-      }
-      
-      // Check targeting with model method
-      return ad.matchesTargeting(region, language, categoryId);
-    });
-    
-    return filteredAds;
-  } catch (error) {
-    console.error('Error selecting ads:', error);
-    return [];
-  }
+
+  const ads = await Ad.find(query)
+    .sort({ priority: -1, position: 1, createdAt: -1 })
+    .limit(limit)
+    .populate('targetCategories', 'name slug');
+
+  // Double-check the database query against the model's schedule and targeting rules.
+  return ads.filter(ad => ad.isCurrentlyActive() && ad.matchesTargeting(region, language, categoryId));
 }
 
 /**
@@ -158,5 +151,3 @@ module.exports = {
   selectAds,
   selectRandomAd
 };
-
-

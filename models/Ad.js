@@ -18,6 +18,11 @@ const adTranslationSchema = new mongoose.Schema({
     maxlength: 50,
     trim: true
   },
+  message: {
+    type: String,
+    maxlength: 500,
+    trim: true,
+  },
   imageUrl: { 
     type: String,
     trim: true
@@ -44,8 +49,8 @@ const adSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Ad type is required'],
     enum: {
-      values: ['banner', 'native', 'sponsored_article', 'display'],
-      message: 'Ad type must be one of: banner, native, sponsored_article, display'
+      values: ['banner', 'native', 'sponsored_article', 'display', 'image_popup', 'text_notification'],
+      message: 'Ad type must be one of: banner, native, sponsored_article, display, image_popup, text_notification'
     },
     index: true
   },
@@ -117,8 +122,8 @@ const adSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Placement is required'],
     enum: {
-      values: ['header', 'sidebar', 'footer', 'inline', 'between_articles', 'article_sidebar', 'popup'],
-      message: 'Placement must be one of: header, sidebar, footer, inline, between_articles, article_sidebar, popup'
+      values: ['header', 'sidebar', 'footer', 'inline', 'between_articles', 'article_sidebar', 'popup', 'notification'],
+      message: 'Placement must be one of: header, sidebar, footer, inline, between_articles, article_sidebar, popup, notification'
     },
     index: true
   },
@@ -154,6 +159,11 @@ const adSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  dismissals: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   
   // Limits (Optional)
   maxImpressions: {
@@ -188,6 +198,37 @@ adSchema.index({ startDate: 1, endDate: 1 });
 adSchema.index({ targetRegions: 1 });
 adSchema.index({ targetLanguages: 1 });
 adSchema.index({ priority: -1, position: 1 });
+
+adSchema.pre('validate', function validateCampaignFormat(next) {
+  if (this.placement === 'popup' && this.type !== 'image_popup') {
+    this.invalidate('type', 'Popup placement requires an image popup campaign');
+  }
+  if (this.placement === 'notification' && this.type !== 'text_notification') {
+    this.invalidate('type', 'Notification placement requires a text notification campaign');
+  }
+
+  if (this.type === 'image_popup') {
+    if (this.placement !== 'popup') {
+      this.invalidate('placement', 'Image popup campaigns must use the popup placement');
+    }
+    const hasImage = Boolean(this.imageUrl)
+      || Object.values(this.translations || {}).some((translation) => translation?.imageUrl);
+    if (!hasImage) {
+      this.invalidate('imageUrl', 'Image popup campaigns require an image');
+    }
+  }
+
+  if (this.type === 'text_notification') {
+    if (this.placement !== 'notification') {
+      this.invalidate('placement', 'Text notification campaigns must use the notification placement');
+    }
+    if (!this.translations?.en?.message?.trim()) {
+      this.invalidate('translations.en.message', 'Text notification campaigns require an English message');
+    }
+  }
+
+  next();
+});
 
 // Virtual for click-through rate
 adSchema.virtual('ctr').get(function() {

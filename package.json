@@ -7,6 +7,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "seed": "node scripts/seed.js",
+    "seed:popup-ads": "node scripts/seedPopupAds.js",
     "seed:regions": "node scripts/seedRegions.js",
     "migrate:multilingual": "node scripts/migrateToMultilingual.js",
     "migrate:passwords": "node scripts/migratePasswords.js",

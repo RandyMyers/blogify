@@ -17,10 +17,10 @@ const getRequestCountryCode = async (req) => {
     ip.startsWith('192.168.') ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
   ) {
-    return null;
+    return 'unknown';
   }
 
-  return normalizeCountryCode(getCountryCodeFromIP(ip));
+  return normalizeCountryCode(getCountryCodeFromIP(ip)) || 'unknown';
 };
 
 const getPagePath = (value) => {
@@ -59,12 +59,12 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
   }
   
   // Default values
-  const isPopup = placement === 'popup';
-  const targetRegion = isPopup ? await getRequestCountryCode(req) : (region || 'US');
+  const isGlobalAdPlacement = placement === 'popup' || placement === 'notification';
+  const targetRegion = isGlobalAdPlacement ? await getRequestCountryCode(req) : (region || 'US');
   const targetLanguage = language || 'en';
   const targetCategory = category || null;
   const requestedLimit = parseInt(req.query.limit, 10) || 5;
-  const limit = Math.min(Math.max(requestedLimit, 1), isPopup ? 10 : 20);
+  const limit = Math.min(Math.max(requestedLimit, 1), isGlobalAdPlacement ? 10 : 20);
   
   // Get ads
   const ads = await selectAds(placement, targetRegion, targetLanguage, targetCategory, limit, req.tenantId);
@@ -86,6 +86,7 @@ exports.getActiveAds = asyncHandler(async (req, res) => {
       title: activeTranslation?.title || '',
       description: activeTranslation?.description || '',
       ctaText: activeTranslation?.ctaText || 'Learn More',
+      message: activeTranslation?.message || '',
       priority: ad.priority,
       position: ad.position
     };
@@ -211,15 +212,15 @@ exports.updateAd = asyncHandler(async (req, res) => {
     });
   }
   
-  // Update ad
-  ad = await Ad.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    {
-      new: true,
-      runValidators: true
-    }
-  );
+  const updates = { ...req.body };
+  delete updates._id;
+  delete updates.tenantId;
+  delete updates.createdBy;
+  delete updates.impressions;
+  delete updates.clicks;
+  delete updates.dismissals;
+  ad.set(updates);
+  await ad.save();
   
   res.json({
     success: true,
@@ -255,7 +256,7 @@ exports.deleteAd = asyncHandler(async (req, res) => {
  * @route   POST /api/ads/:id/impression
  * @access  Public
  */
-exports.trackImpression = asyncHandler(async (req, res) => {
+const recordAdEvent = async (req, res, eventType) => {
   const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
   
   if (!ad) {
@@ -267,21 +268,68 @@ exports.trackImpression = asyncHandler(async (req, res) => {
   
   const countryCode = await getRequestCountryCode(req);
   const pagePath = getPagePath(req.body?.pagePath);
-  await Promise.all([
-    Ad.updateOne({ _id: ad._id, ...scopedFilter(req) }, { $inc: { impressions: 1 } }),
-    AdEvent.create({
+  const language = typeof req.body?.language === 'string'
+    && /^[a-z]{2}$/i.test(req.body.language)
+    ? req.body.language.toLowerCase()
+    : 'en';
+  const isGlobalAdPlacement = ad.placement === 'popup' || ad.placement === 'notification';
+  const expectedFormatType = ad.placement === 'popup'
+    ? 'image_popup'
+    : ad.placement === 'notification'
+      ? 'text_notification'
+      : null;
+
+  if (
+    (eventType === 'dismissal' && !isGlobalAdPlacement)
+    || !ad.isCurrentlyActive()
+    || (expectedFormatType && ad.type !== expectedFormatType)
+    || (isGlobalAdPlacement && !ad.matchesTargeting(countryCode, language))
+  ) {
+    return res.status(409).json({
+      success: false,
+      message: 'Ad is not currently eligible for this event',
+    });
+  }
+
+  const eventId = typeof req.body?.eventId === 'string'
+    && /^[a-zA-Z0-9_-]{16,100}$/.test(req.body.eventId)
+    ? req.body.eventId
+    : undefined;
+
+  try {
+    await AdEvent.create({
       adId: ad._id,
-      type: 'impression',
+      type: eventType,
+      eventId,
       tenantId: req.tenantId,
       countryCode,
       pagePath,
-    }),
-  ]);
+    });
+  } catch (error) {
+    if (error.code === 11000 && eventId) {
+      return res.json({
+        success: true,
+        message: 'Event already tracked',
+      });
+    }
+    throw error;
+  }
+
+  const counter = eventType === 'impression'
+    ? 'impressions'
+    : eventType === 'click'
+      ? 'clicks'
+      : 'dismissals';
+  await Ad.updateOne({ _id: ad._id, ...scopedFilter(req) }, { $inc: { [counter]: 1 } });
   
   res.json({
     success: true,
-    message: 'Impression tracked'
+    message: `${eventType} tracked`
   });
+};
+
+exports.trackImpression = asyncHandler(async (req, res) => {
+  await recordAdEvent(req, res, 'impression');
 });
 
 /**
@@ -290,32 +338,11 @@ exports.trackImpression = asyncHandler(async (req, res) => {
  * @access  Public
  */
 exports.trackClick = asyncHandler(async (req, res) => {
-  const ad = await Ad.findOne({ _id: req.params.id, ...scopedFilter(req) });
-  
-  if (!ad) {
-    return res.status(404).json({
-      success: false,
-      message: 'Ad not found'
-    });
-  }
-  
-  const countryCode = await getRequestCountryCode(req);
-  const pagePath = getPagePath(req.body?.pagePath);
-  await Promise.all([
-    Ad.updateOne({ _id: ad._id, ...scopedFilter(req) }, { $inc: { clicks: 1 } }),
-    AdEvent.create({
-      adId: ad._id,
-      type: 'click',
-      tenantId: req.tenantId,
-      countryCode,
-      pagePath,
-    }),
-  ]);
-  
-  res.json({
-    success: true,
-    message: 'Click tracked'
-  });
+  await recordAdEvent(req, res, 'click');
+});
+
+exports.trackDismissal = asyncHandler(async (req, res) => {
+  await recordAdEvent(req, res, 'dismissal');
 });
 
 /**
@@ -332,6 +359,7 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
 
   const totalImpressions = ads.reduce((sum, ad) => sum + (ad.impressions || 0), 0);
   const totalClicks = ads.reduce((sum, ad) => sum + (ad.clicks || 0), 0);
+  const totalDismissals = ads.reduce((sum, ad) => sum + (ad.dismissals || 0), 0);
   const averageCTR = totalImpressions > 0
     ? parseFloat(((totalClicks / totalImpressions) * 100).toFixed(2))
     : 0;
@@ -342,6 +370,7 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
       name: ad.name,
       impressions: ad.impressions || 0,
       clicks: ad.clicks || 0,
+      dismissals: ad.dismissals || 0,
       ctr: ad.impressions > 0 ? parseFloat(((ad.clicks / ad.impressions) * 100).toFixed(2)) : 0,
     }))
     .sort((a, b) => b.clicks - a.clicks)
@@ -372,10 +401,12 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
 
   const impressionsByDay = [];
   const clicksByDay = [];
+  const dismissalsByDay = [];
   dailyRows.forEach((row) => {
     const point = { date: row._id.date, count: row.count };
     if (row._id.type === 'impression') impressionsByDay.push(point);
     if (row._id.type === 'click') clicksByDay.push(point);
+    if (row._id.type === 'dismissal') dismissalsByDay.push(point);
   });
 
   const countryRows = await AdEvent.aggregate([
@@ -396,9 +427,11 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
       countryCode,
       impressions: 0,
       clicks: 0,
+      dismissals: 0,
     };
     if (row._id.type === 'impression') totals.impressions = row.count;
     if (row._id.type === 'click') totals.clicks = row.count;
+    if (row._id.type === 'dismissal') totals.dismissals = row.count;
     countryTotals.set(countryCode, totals);
   });
   const countryBreakdown = [...countryTotals.values()]
@@ -416,10 +449,12 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
       totalAds: ads.length,
       totalImpressions,
       totalClicks,
+      totalDismissals,
       averageCTR,
       topAds,
       impressionsByDay,
       clicksByDay,
+      dismissalsByDay,
       countryBreakdown,
       days,
     },

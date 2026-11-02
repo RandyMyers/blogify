@@ -9,6 +9,7 @@ const {
   deleteAd,
   trackImpression,
   trackClick,
+  trackDismissal,
   getAnalytics
 } = require('../controllers/adController');
 const { protect, isAdmin } = require('../middleware/auth');
@@ -27,8 +28,8 @@ router.delete('/admin/:id', protect, isAdmin, deleteAd);
 router.get('/:id', getAdById);
 router.post('/:id/impression', trackImpression);
 router.post('/:id/click', trackClick);
+router.post('/:id/dismissal', trackDismissal);
 
 module.exports = router;
-
 
 
